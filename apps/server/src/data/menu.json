@@ -1,0 +1,200 @@
+[
+  {
+    "id": "classic_smash_burger",
+    "name": "Classic Smash Burger",
+    "category": "Burgers",
+    "description": "Double-smashed beef patties, American cheese, onions, pickles, and bistro sauce.",
+    "price": 9.49,
+    "imageUrl": "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=900&q=80",
+    "tags": ["classic", "popular"],
+    "available": true
+  },
+  {
+    "id": "spicy_chicken_burger",
+    "name": "Spicy Chicken Burger",
+    "category": "Burgers",
+    "description": "Crispy chicken, spicy mayo, lettuce, pickles, and toasted brioche.",
+    "price": 8.99,
+    "imageUrl": "https://images.unsplash.com/photo-1606755962773-d324e0a13086?auto=format&fit=crop&w=900&q=80",
+    "tags": ["spicy", "popular"],
+    "available": true
+  },
+  {
+    "id": "bbq_bacon_burger",
+    "name": "BBQ Bacon Burger",
+    "category": "Burgers",
+    "description": "Beef patty, smoked bacon, cheddar, BBQ glaze, and crisp onion rings.",
+    "price": 10.49,
+    "imageUrl": "https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=900&q=80",
+    "tags": ["premium"],
+    "available": true
+  },
+  {
+    "id": "garden_veggie_burger",
+    "name": "Garden Veggie Burger",
+    "category": "Burgers",
+    "description": "Roasted vegetable patty, avocado, tomato, greens, and lemon herb aioli.",
+    "price": 9.25,
+    "imageUrl": "https://images.unsplash.com/photo-1520072959219-c595dc870360?auto=format&fit=crop&w=900&q=80",
+    "tags": ["vegan", "vegetarian"],
+    "available": true
+  },
+  {
+    "id": "spicy_chicken_sandwich",
+    "name": "Spicy Chicken Sandwich",
+    "category": "Sandwiches",
+    "description": "Buttermilk fried chicken, chili honey, slaw, pickles, and soft potato roll.",
+    "price": 8.75,
+    "imageUrl": "https://images.unsplash.com/photo-1521390188846-e2a3a97453a0?auto=format&fit=crop&w=900&q=80",
+    "tags": ["spicy", "popular"],
+    "available": true
+  },
+  {
+    "id": "turkey_avocado_sandwich",
+    "name": "Turkey Avocado Sandwich",
+    "category": "Sandwiches",
+    "description": "Roasted turkey, avocado, tomato, arugula, and basil aioli on sourdough.",
+    "price": 8.95,
+    "imageUrl": "https://images.unsplash.com/photo-1553909489-cd47e0907980?auto=format&fit=crop&w=900&q=80",
+    "tags": ["classic"],
+    "available": true
+  },
+  {
+    "id": "caprese_panini",
+    "name": "Caprese Panini",
+    "category": "Sandwiches",
+    "description": "Fresh mozzarella, tomato, basil pesto, balsamic glaze, and pressed ciabatta.",
+    "price": 8.25,
+    "imageUrl": "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?auto=format&fit=crop&w=900&q=80",
+    "tags": ["vegetarian"],
+    "available": true
+  },
+  {
+    "id": "brisket_grilled_cheese",
+    "name": "Brisket Grilled Cheese",
+    "category": "Sandwiches",
+    "description": "Slow-smoked brisket, cheddar, caramelized onions, and sourdough.",
+    "price": 10.75,
+    "imageUrl": "https://images.unsplash.com/photo-1539252554453-80ab65ce3586?auto=format&fit=crop&w=900&q=80",
+    "tags": ["premium"],
+    "available": true
+  },
+  {
+    "id": "large_water",
+    "name": "Large Water",
+    "category": "Drinks",
+    "description": "Chilled still water served in a large cup.",
+    "price": 1.5,
+    "imageUrl": "https://images.unsplash.com/photo-1548839140-29a749e1cf4d?auto=format&fit=crop&w=900&q=80",
+    "tags": [],
+    "available": true,
+    "variants": [
+      { "id": "regular", "label": "Regular", "priceDelta": 0 },
+      { "id": "large", "label": "Large", "priceDelta": 0.5 }
+    ]
+  },
+  {
+    "id": "coke",
+    "name": "Coke",
+    "category": "Drinks",
+    "description": "Classic cola poured over ice.",
+    "price": 2.49,
+    "imageUrl": "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=900&q=80",
+    "tags": ["classic"],
+    "available": true,
+    "variants": [
+      { "id": "regular", "label": "Regular", "priceDelta": 0 },
+      { "id": "large", "label": "Large", "priceDelta": 0.75 }
+    ]
+  },
+  {
+    "id": "sparkling_lemonade",
+    "name": "Sparkling Lemonade",
+    "category": "Drinks",
+    "description": "Fresh lemon, sparkling water, cane sugar, and mint.",
+    "price": 3.25,
+    "imageUrl": "https://images.unsplash.com/photo-1523677011781-c91d1bbe2f9e?auto=format&fit=crop&w=900&q=80",
+    "tags": ["popular"],
+    "available": true
+  },
+  {
+    "id": "iced_berry_tea",
+    "name": "Iced Berry Tea",
+    "category": "Drinks",
+    "description": "Black tea shaken with berry syrup, lemon, and crushed ice.",
+    "price": 3.49,
+    "imageUrl": "https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=900&q=80",
+    "tags": [],
+    "available": true
+  },
+  {
+    "id": "french_fries",
+    "name": "French Fries",
+    "category": "Sides",
+    "description": "Golden fries tossed with sea salt.",
+    "price": 2.99,
+    "imageUrl": "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=900&q=80",
+    "tags": ["classic", "vegetarian"],
+    "available": true
+  },
+  {
+    "id": "truffle_parmesan_fries",
+    "name": "Truffle Parmesan Fries",
+    "category": "Sides",
+    "description": "Crispy fries with truffle oil, parmesan, parsley, and garlic aioli.",
+    "price": 4.75,
+    "imageUrl": "https://images.unsplash.com/photo-1639024471283-03518883512d?auto=format&fit=crop&w=900&q=80",
+    "tags": ["premium", "vegetarian"],
+    "available": true
+  },
+  {
+    "id": "sweet_potato_fries",
+    "name": "Sweet Potato Fries",
+    "category": "Sides",
+    "description": "Crisp sweet potato fries with smoked paprika salt.",
+    "price": 3.95,
+    "imageUrl": "https://images.unsplash.com/photo-1518013431117-eb1465fa5752?auto=format&fit=crop&w=900&q=80",
+    "tags": ["vegetarian"],
+    "available": true
+  },
+  {
+    "id": "side_caesar_salad",
+    "name": "Side Caesar Salad",
+    "category": "Sides",
+    "description": "Romaine, parmesan, brioche croutons, and creamy Caesar dressing.",
+    "price": 4.25,
+    "imageUrl": "https://images.unsplash.com/photo-1550304943-4f24f54ddde9?auto=format&fit=crop&w=900&q=80",
+    "tags": ["vegetarian"],
+    "available": true
+  },
+  {
+    "id": "chocolate_lava_cake",
+    "name": "Chocolate Lava Cake",
+    "category": "Desserts",
+    "description": "Warm chocolate cake with molten center and vanilla cream.",
+    "price": 5.99,
+    "imageUrl": "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=900&q=80",
+    "tags": ["popular"],
+    "available": true
+  },
+  {
+    "id": "vanilla_bean_cheesecake",
+    "name": "Vanilla Bean Cheesecake",
+    "category": "Desserts",
+    "description": "Creamy cheesecake with graham crust and berry compote.",
+    "price": 5.75,
+    "imageUrl": "https://images.unsplash.com/photo-1533134242443-d4fd215305ad?auto=format&fit=crop&w=900&q=80",
+    "tags": ["classic"],
+    "available": true
+  },
+  {
+    "id": "salted_caramel_brownie",
+    "name": "Salted Caramel Brownie",
+    "category": "Desserts",
+    "description": "Fudgy brownie, salted caramel, and toasted pecans.",
+    "price": 4.95,
+    "imageUrl": "https://images.unsplash.com/photo-1606312619070-d48b4c652a52?auto=format&fit=crop&w=900&q=80",
+    "tags": ["premium"],
+    "available": true
+  }
+]
