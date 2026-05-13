@@ -1,6 +1,7 @@
 import React from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs } from 'expo-router';
+import { StyleSheet, View } from 'react-native';
 
 import { colors } from '@/src/theme/colors';
 
@@ -8,7 +9,7 @@ function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>['name'];
   color: string;
 }) {
-  return <FontAwesome size={22} style={{ marginBottom: -2 }} {...props} />;
+  return <FontAwesome size={22} {...props} />;
 }
 
 export default function TabLayout() {
@@ -20,12 +21,12 @@ export default function TabLayout() {
         tabBarInactiveTintColor: colors.muted,
         tabBarLabelStyle: {
           fontSize: 12,
-          fontWeight: '700',
+          fontWeight: '800',
         },
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
-          height: 64,
+          height: 70,
           paddingBottom: 10,
           paddingTop: 8,
         },
@@ -38,19 +39,41 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="assistant"
+        options={{
+          title: 'AI',
+          tabBarIcon: () => (
+            <View style={styles.aiTabIcon}>
+              <FontAwesome color={colors.onPrimary} name="magic" size={22} />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="cart"
         options={{
           title: 'Cart',
           tabBarIcon: ({ color }) => <TabBarIcon name="shopping-basket" color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="assistant"
-        options={{
-          title: 'Assistant',
-          tabBarIcon: ({ color }) => <TabBarIcon name="comments-o" color={color} />,
-        }}
-      />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  aiTabIcon: {
+    alignItems: 'center',
+    backgroundColor: colors.ink,
+    borderColor: colors.surface,
+    borderRadius: 28,
+    borderWidth: 4,
+    elevation: 8,
+    height: 56,
+    justifyContent: 'center',
+    shadowColor: colors.cardShadow,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    width: 56,
+  },
+});
