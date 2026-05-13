@@ -1,5 +1,6 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Link } from 'expo-router';
+import { useMemo } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen } from '@/src/components/AppScreen';
@@ -7,9 +8,9 @@ import { colors } from '@/src/theme/colors';
 import { radii, spacing } from '@/src/theme/spacing';
 
 import {
+  calculateCartTotals,
   type CartLineItem,
   selectCartLines,
-  selectCartTotals,
   useCartStore,
 } from './cartStore';
 
@@ -17,7 +18,7 @@ const formatPrice = (price: number) => `$${price.toFixed(2)}`;
 
 export function CartScreen() {
   const lines = useCartStore(selectCartLines);
-  const totals = useCartStore(selectCartTotals);
+  const totals = useMemo(() => calculateCartTotals(lines), [lines]);
   const clearCart = useCartStore((state) => state.clearCart);
   const removeItem = useCartStore((state) => state.removeItem);
   const updateQuantity = useCartStore((state) => state.updateQuantity);

@@ -250,7 +250,6 @@ export const useCartStore = create<CartState>((set, get) => ({
 }));
 
 export const selectCartLines = (state: CartState) => state.lines;
-export const selectCartTotals = (state: CartState) => calculateCartTotals(state.lines);
 export const selectCartItemCount = (state: CartState) => calculateCartTotals(state.lines).itemCount;
 
 function applyCartAction(
