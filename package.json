@@ -1,0 +1,21 @@
+{
+  "name": "intelligent-bistro",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Production-quality take-home project for a conversational restaurant ordering app.",
+  "workspaces": [
+    "apps/mobile",
+    "apps/server"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:mobile": "npm run dev -w apps/mobile",
+    "dev:server": "npm run dev -w apps/server",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
