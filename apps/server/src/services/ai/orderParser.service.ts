@@ -10,20 +10,21 @@ import OpenAI from 'openai';
 
 import { env } from '../../config/env';
 import { getMenuItemById, getMenuItems } from '../menu.service';
+import { parseOrderWithFallback } from './fallbackOrderParser.service';
 import { buildOrderParserMessages } from './orderPrompt';
 
 let openaiClient: OpenAI | undefined;
 
 export async function parseOrderRequest(request: AiOrderRequest): Promise<AiOrderResponse> {
   if (!env.openaiApiKey) {
-    return createAiUnavailableResponse();
+    return parseOrderWithFallback(request);
   }
 
   try {
     const rawResponse = await requestOpenAiOrderParse(request, getMenuItems());
     return sanitizeAiOrderResponse(rawResponse);
   } catch (error) {
-    return createAiFailureResponse(error);
+    return withFallbackError(parseOrderWithFallback(request), error);
   }
 }
 
@@ -114,36 +115,18 @@ function getAvailableSuggestions(category: MenuItem['category']) {
     .map((item) => item.name);
 }
 
-function createAiUnavailableResponse(): AiOrderResponse {
-  return aiOrderResponseSchema.parse({
-    actions: [],
-    assistantMessage:
-      'AI order parsing is not configured on the server yet. Please try again when parsing is enabled.',
-    confidence: 0.1,
-    errors: [
-      {
-        code: 'validation_error',
-        message: 'OPENAI_API_KEY is not configured on the server.',
-      },
-    ],
-    intent: 'unknown',
-  });
-}
-
-function createAiFailureResponse(error: unknown): AiOrderResponse {
+function withFallbackError(response: AiOrderResponse, error: unknown): AiOrderResponse {
   const message = error instanceof Error ? error.message : 'Unknown AI parsing error';
 
   return aiOrderResponseSchema.parse({
-    actions: [],
-    assistantMessage:
-      'I could not parse that order reliably right now. Please try again in a moment.',
-    confidence: 0.1,
+    ...response,
+    confidence: Math.min(response.confidence, 0.82),
     errors: [
+      ...(response.errors ?? []),
       {
         code: 'validation_error',
-        message,
+        message: `OpenAI parsing failed, so the deterministic fallback parser was used. ${message}`,
       },
     ],
-    intent: 'unknown',
   });
 }
