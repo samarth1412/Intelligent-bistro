@@ -3,6 +3,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
+import { selectCartItemCount, useCartStore } from '@/src/features/cart/cartStore';
 import { colors } from '@/src/theme/colors';
 
 function TabBarIcon(props: {
@@ -13,6 +14,8 @@ function TabBarIcon(props: {
 }
 
 export default function TabLayout() {
+  const cartItemCount = useCartStore(selectCartItemCount);
+
   return (
     <Tabs
       screenOptions={{
@@ -53,6 +56,8 @@ export default function TabLayout() {
         name="cart"
         options={{
           title: 'Cart',
+          tabBarBadge: cartItemCount > 0 ? cartItemCount : undefined,
+          tabBarBadgeStyle: styles.cartBadge,
           tabBarIcon: ({ color }) => <TabBarIcon name="shopping-basket" color={color} />,
         }}
       />
@@ -75,5 +80,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.16,
     shadowRadius: 12,
     width: 56,
+  },
+  cartBadge: {
+    backgroundColor: colors.primary,
+    color: colors.onPrimary,
+    fontSize: 11,
+    fontWeight: '900',
   },
 });
