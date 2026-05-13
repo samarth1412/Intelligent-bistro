@@ -1,8 +1,10 @@
+import { menuItemsSchema } from '@intelligent-bistro/contracts';
+
 import menuItemsJson from '../data/menu.json';
 import { HttpError } from '../utils/HttpError';
 import { menuCategories, type MenuCategory, type MenuItem } from '../types/menu';
 
-const menuItems = menuItemsJson as MenuItem[];
+const menuItems = menuItemsSchema.parse(menuItemsJson) as MenuItem[];
 
 export function isMenuCategory(value: string): value is MenuCategory {
   return menuCategories.includes(value as MenuCategory);
