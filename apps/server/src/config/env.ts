@@ -15,5 +15,7 @@ function parsePort(value: string | undefined) {
 
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
+  openaiApiKey: process.env.OPENAI_API_KEY,
+  openaiModel: process.env.OPENAI_MODEL ?? 'gpt-4.1-mini',
   port: parsePort(process.env.PORT),
 };

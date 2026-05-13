@@ -13,7 +13,8 @@
     "@intelligent-bistro/contracts": "*",
     "cors": "^2.8.6",
     "dotenv": "^16.4.7",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "openai": "^6.37.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
