@@ -4,7 +4,8 @@ import type {
   CartAction,
   MenuItem,
 } from '@intelligent-bistro/contracts';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'expo-router';
 import {
   Image,
   KeyboardAvoidingView,
@@ -29,6 +30,45 @@ import { radii, spacing } from '@/src/theme/spacing';
 
 import { sendAssistantMessage } from './assistantApi';
 
+type BrowserSpeechRecognitionEvent = {
+  resultIndex: number;
+  results: {
+    length: number;
+    [index: number]: {
+      0?: {
+        transcript: string;
+      };
+      isFinal: boolean;
+    };
+  };
+};
+
+type BrowserSpeechRecognition = {
+  abort: () => void;
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+  onresult: ((event: BrowserSpeechRecognitionEvent) => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type SpeechWindow = {
+  SpeechRecognition?: new () => BrowserSpeechRecognition;
+  SpeechSynthesisUtterance?: new (text: string) => {
+    lang: string;
+    pitch: number;
+    rate: number;
+  };
+  speechSynthesis?: {
+    cancel: () => void;
+    speak: (utterance: unknown) => void;
+  };
+  webkitSpeechRecognition?: new () => BrowserSpeechRecognition;
+};
+
 type ChatMessage = {
   id: string;
   role: 'assistant' | 'user';
@@ -49,10 +89,17 @@ const quickPrompts = [
 ];
 
 export function AssistantScreen() {
+  const router = useRouter();
   const scrollRef = useRef<ScrollView>(null);
+  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const shouldSpeakResponseRef = useRef(false);
+  const voiceTranscriptRef = useRef('');
+  const shouldSubmitVoiceRef = useRef(false);
   const [inputValue, setInputValue] = useState('');
+  const [isListening, setIsListening] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [lastReferencedItemIds, setLastReferencedItemIds] = useState<string[]>([]);
+  const [voiceNotice, setVoiceNotice] = useState<string>();
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
@@ -67,6 +114,7 @@ export function AssistantScreen() {
   const { error: menuError, isLoading: isMenuLoading, items, itemsById } = useMenu();
 
   const canSend = inputValue.trim().length > 0 && !isSending && !isMenuLoading && !menuError;
+  const canUseVoice = !isSending && !isMenuLoading && !menuError;
   const cartPayload = useMemo(
     () =>
       cartLines.map((line) => ({
@@ -75,6 +123,14 @@ export function AssistantScreen() {
         quantity: line.quantity,
       })),
     [cartLines]
+  );
+
+  useEffect(
+    () => () => {
+      recognitionRef.current?.abort();
+      getSpeechWindow()?.speechSynthesis?.cancel();
+    },
+    []
   );
 
   async function sendMessage(messageText = inputValue) {
@@ -107,6 +163,10 @@ export function AssistantScreen() {
       const actionResults = shouldApplyActions ? applyCartActions(response.actions) : [];
 
       setLastReferencedItemIds(response.referencedItemIds);
+      if (shouldSpeakResponseRef.current) {
+        speakAssistantMessage(response.assistantMessage);
+        shouldSpeakResponseRef.current = false;
+      }
       setMessages((currentMessages) => [
         ...currentMessages,
         {
@@ -120,6 +180,9 @@ export function AssistantScreen() {
           timestamp: new Date(),
         },
       ]);
+      if (response.intent === 'checkout_intent' && cartPayload.length > 0) {
+        setTimeout(() => router.push('/payment'), 650);
+      }
     } catch {
       setMessages((currentMessages) => [
         ...currentMessages,
@@ -131,6 +194,7 @@ export function AssistantScreen() {
         },
       ]);
     } finally {
+      shouldSpeakResponseRef.current = false;
       setIsSending(false);
     }
   }
@@ -145,6 +209,88 @@ export function AssistantScreen() {
 
   function sendClarificationChoice(option: string) {
     sendMessage(`Add ${option}`);
+  }
+
+  function toggleVoiceInput() {
+    if (isListening) {
+      shouldSubmitVoiceRef.current = true;
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    startVoiceInput();
+  }
+
+  function startVoiceInput() {
+    const SpeechRecognition = getSpeechRecognitionConstructor();
+
+    if (!SpeechRecognition) {
+      setVoiceNotice('Voice input is available in supported browser previews. You can still use keyboard dictation.');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+    voiceTranscriptRef.current = '';
+    shouldSubmitVoiceRef.current = true;
+
+    recognition.onresult = (event) => {
+      let finalTranscript = '';
+      let interimTranscript = '';
+
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const transcript = event.results[index]?.[0]?.transcript ?? '';
+
+        if (event.results[index]?.isFinal) {
+          finalTranscript += transcript;
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+
+      const nextTranscript = `${finalTranscript || interimTranscript}`.trim();
+
+      if (nextTranscript) {
+        voiceTranscriptRef.current = nextTranscript;
+        setInputValue(nextTranscript);
+      }
+    };
+    recognition.onerror = () => {
+      shouldSubmitVoiceRef.current = false;
+      setIsListening(false);
+      setVoiceNotice('I could not hear that clearly. Try the mic again or type your request.');
+    };
+    recognition.onend = () => {
+      const transcript = voiceTranscriptRef.current.trim();
+      const shouldSubmit = shouldSubmitVoiceRef.current;
+
+      setIsListening(false);
+      recognitionRef.current = null;
+
+      if (transcript && shouldSubmit) {
+        setVoiceNotice(undefined);
+        shouldSpeakResponseRef.current = true;
+        sendMessage(transcript);
+        return;
+      }
+
+      setVoiceNotice(transcript ? 'Voice captured. Tap send when ready.' : 'No speech detected.');
+    };
+
+    recognitionRef.current = recognition;
+    setVoiceNotice('Listening...');
+    setIsListening(true);
+
+    try {
+      recognition.start();
+    } catch {
+      recognitionRef.current = null;
+      shouldSubmitVoiceRef.current = false;
+      setIsListening(false);
+      setVoiceNotice('Microphone access was not available. Type your request or try again.');
+    }
   }
 
   return (
@@ -207,6 +353,21 @@ export function AssistantScreen() {
         </View>
 
         <View style={styles.composer}>
+          <Pressable
+            accessibilityLabel={isListening ? 'Stop voice input' : 'Start voice input'}
+            disabled={!canUseVoice}
+            onPress={toggleVoiceInput}
+            style={[
+              styles.voiceButton,
+              isListening && styles.voiceButtonListening,
+              !canUseVoice && styles.voiceButtonDisabled,
+            ]}>
+            <FontAwesome
+              color={isListening ? colors.onPrimary : colors.ink}
+              name={isListening ? 'stop' : 'microphone'}
+              size={15}
+            />
+          </Pressable>
           <TextInput
             editable={!isSending && !isMenuLoading}
             multiline
@@ -231,6 +392,7 @@ export function AssistantScreen() {
             <FontAwesome color={colors.onPrimary} name="send" size={15} />
           </Pressable>
         </View>
+        {voiceNotice ? <Text style={styles.voiceNotice}>{voiceNotice}</Text> : null}
       </KeyboardAvoidingView>
     </AppScreen>
   );
@@ -476,6 +638,36 @@ function buildConversationHistory(messages: ChatMessage[]) {
   }));
 }
 
+function getSpeechWindow() {
+  if (Platform.OS !== 'web') {
+    return undefined;
+  }
+
+  return globalThis as unknown as SpeechWindow;
+}
+
+function getSpeechRecognitionConstructor() {
+  const speechWindow = getSpeechWindow();
+
+  return speechWindow?.SpeechRecognition ?? speechWindow?.webkitSpeechRecognition;
+}
+
+function speakAssistantMessage(message: string) {
+  const speechWindow = getSpeechWindow();
+  const SpeechSynthesisUtterance = speechWindow?.SpeechSynthesisUtterance;
+
+  if (!speechWindow?.speechSynthesis || !SpeechSynthesisUtterance) {
+    return;
+  }
+
+  const utterance = new SpeechSynthesisUtterance(message);
+  utterance.lang = 'en-US';
+  utterance.pitch = 1;
+  utterance.rate = 0.98;
+  speechWindow.speechSynthesis.cancel();
+  speechWindow.speechSynthesis.speak(utterance);
+}
+
 const sharedShadow = {
   elevation: 5,
   shadowColor: colors.cardShadow,
@@ -645,6 +837,31 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     minHeight: 54,
     padding: 7,
+  },
+  voiceButton: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.border,
+    borderRadius: 21,
+    borderWidth: 1,
+    height: 42,
+    justifyContent: 'center',
+    width: 42,
+  },
+  voiceButtonDisabled: {
+    opacity: 0.45,
+  },
+  voiceButtonListening: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  voiceNotice: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.md,
   },
   confidenceText: {
     color: colors.muted,

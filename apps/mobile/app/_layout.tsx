@@ -63,6 +63,7 @@ function RootLayoutNav() {
       <StatusBar style="dark" />
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="payment" options={{ headerShown: false }} />
       </Stack>
     </ThemeProvider>
   );

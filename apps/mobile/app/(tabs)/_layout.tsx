@@ -25,14 +25,15 @@ export default function TabLayout() {
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '800',
+          marginTop: 3,
         },
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopWidth: 0,
           elevation: 18,
-          height: 76,
-          paddingBottom: 12,
-          paddingTop: 9,
+          height: 82,
+          paddingBottom: 14,
+          paddingTop: 10,
           shadowColor: colors.cardShadow,
           shadowOffset: { width: 0, height: -8 },
           shadowOpacity: 0.08,
@@ -49,7 +50,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="assistant"
         options={{
-          title: 'AI',
+          tabBarLabel: () => null,
           tabBarIcon: () => (
             <View style={styles.aiTabIcon}>
               <FontAwesome color={colors.onPrimary} name="magic" size={22} />
@@ -75,16 +76,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.ink,
     borderColor: colors.background,
-    borderRadius: 28,
+    borderRadius: 27,
     borderWidth: 4,
     elevation: 10,
-    height: 58,
+    height: 54,
     justifyContent: 'center',
     shadowColor: colors.cardShadow,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.18,
     shadowRadius: 16,
-    width: 58,
+    transform: [{ translateY: -10 }],
+    width: 54,
   },
   cartBadge: {
     backgroundColor: colors.primary,

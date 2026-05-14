@@ -54,6 +54,7 @@ const assistantSystemPrompt = [
   '- If multiple items match for an order request, ask a clarification question.',
   '- If the user asks a general question, answer conversationally without cart actions.',
   '- If the user confirms a previous suggestion, use conversation history to resolve the item.',
+  '- If the user says they are done, that is all, no more, ready to pay, or wants checkout/payment, classify as checkout_intent and do not create cart actions.',
   '- When resolving ambiguous references like "burger", "sandwich", "that", "one", or "those", first look at the previous assistant message and referencedItemIds. Prefer the most recent relevant item over the full menu.',
   '- If a message clearly says add, order, take, remove, update, or make, classify it as cart_update even when it contains descriptive words like spicy, vegan, light, or large.',
   '- For multi-item order requests, return one action for each clearly matched menu item.',
@@ -83,6 +84,12 @@ export async function handleAssistantMessage(
   request: AssistantMessageRequest
 ): Promise<AssistantMessageResponse> {
   const menuItems = getMenuItems().filter((item) => item.available);
+  const normalizedMessage = normalizeText(request.message);
+
+  if (isCheckoutIntent(normalizedMessage)) {
+    return finalizeAssistantResponse(createCheckoutIntentResponse(request), request, menuItems);
+  }
+
   const deterministicCartUpdate = createDeterministicCartUpdateResponse(request, menuItems);
 
   if (deterministicCartUpdate) {
@@ -306,6 +313,18 @@ function createFallbackAssistantResponse(
     confidence: 0.5,
     intent: 'unknown',
     needsClarification: true,
+  });
+}
+
+function createCheckoutIntentResponse(request: AssistantMessageRequest) {
+  const hasCartItems = request.cart.length > 0;
+
+  return buildResponse({
+    assistantMessage: hasCartItems
+      ? 'Your order is ready. I am taking you to payment now.'
+      : 'Your cart is empty right now. Add an item first, then I can take you to payment.',
+    confidence: 0.94,
+    intent: 'checkout_intent',
   });
 }
 
@@ -849,7 +868,10 @@ function isSmallTalk(input: string) {
 }
 
 function isCheckoutIntent(input: string) {
-  return /\b(checkout|check out|pay|place order|finish order)\b/.test(input);
+  return (
+    /\b(checkout|check out|pay|payment|place order|finish order|complete order|complete my order)\b/.test(input) ||
+    /\b(order is done|order done|i'?m done|i am done|done ordering|that'?s all|thats all|no more|ready to pay)\b/.test(input)
+  );
 }
 
 function isCartQuestion(input: string) {

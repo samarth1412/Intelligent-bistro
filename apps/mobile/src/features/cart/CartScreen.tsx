@@ -78,10 +78,12 @@ export function CartScreen() {
             <SummaryRow isTotal label="Total" value={formatPrice(totals.total)} />
           </View>
 
-          <Pressable accessibilityRole="button" style={styles.checkoutButton}>
-            <Text style={styles.checkoutText}>Proceed to Checkout</Text>
-            <FontAwesome color={colors.onPrimary} name="long-arrow-right" size={16} />
-          </Pressable>
+          <Link href="/payment" asChild>
+            <Pressable accessibilityRole="button" style={styles.checkoutButton}>
+              <Text style={styles.checkoutText}>Proceed to Checkout</Text>
+              <FontAwesome color={colors.onPrimary} name="long-arrow-right" size={16} />
+            </Pressable>
+          </Link>
         </>
       ) : (
         <EmptyCart />
