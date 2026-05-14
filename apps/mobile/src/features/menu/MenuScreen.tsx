@@ -17,12 +17,12 @@ import { radii, spacing } from '@/src/theme/spacing';
 
 import { useMenu } from './useMenu';
 
-const categoryIcons: Record<MenuCategory, React.ComponentProps<typeof FontAwesome>['name']> = {
-  Burgers: 'cutlery',
-  Desserts: 'birthday-cake',
-  Drinks: 'glass',
-  Sandwiches: 'bars',
-  Sides: 'leaf',
+const categoryIcons: Record<MenuCategory, string> = {
+  Burgers: '🍔',
+  Desserts: '🍰',
+  Drinks: '🥤',
+  Sandwiches: '🥪',
+  Sides: '🍟',
 };
 
 const formatPrice = (price: number) => `$${price.toFixed(2)}`;
@@ -67,8 +67,12 @@ export function MenuScreen() {
     <AppScreen scroll>
       <View style={styles.header}>
         <View style={styles.headerCopy}>
-          <Text style={styles.greeting}>Good afternoon</Text>
+          <Text style={styles.greeting}>Good afternoon 👋</Text>
           <Text style={styles.title}>What would you like to order?</Text>
+          <View style={styles.deliveryPill}>
+            <FontAwesome color={colors.primary} name="map-marker" size={12} />
+            <Text style={styles.deliveryText}>Fresh bistro menu</Text>
+          </View>
         </View>
         <Pressable style={styles.iconButton}>
           <FontAwesome color={colors.ink} name="bell-o" size={20} />
@@ -159,11 +163,7 @@ function CategoryTile({
       onPress={onPress}
       style={[styles.categoryTile, isSelected && styles.categoryTileSelected]}>
       <View style={[styles.categoryIcon, isSelected && styles.categoryIconSelected]}>
-        <FontAwesome
-          color={isSelected ? colors.primaryDark : colors.primary}
-          name={categoryIcons[category]}
-          size={18}
-        />
+        <Text style={styles.categoryEmoji}>{categoryIcons[category]}</Text>
       </View>
       <Text style={[styles.categoryLabel, isSelected && styles.categoryLabelSelected]}>
         {category}
@@ -304,11 +304,11 @@ function EmptyResults() {
 }
 
 const sharedShadow = {
-  elevation: 6,
+  elevation: 5,
   shadowColor: colors.cardShadow,
-  shadowOffset: { width: 0, height: 8 },
-  shadowOpacity: 0.08,
-  shadowRadius: 18,
+  shadowOffset: { width: 0, height: 10 },
+  shadowOpacity: 0.07,
+  shadowRadius: 20,
 };
 
 const styles = StyleSheet.create({
@@ -339,19 +339,23 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: colors.ink,
-    fontSize: 15,
-    fontWeight: '800',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  categoryEmoji: {
+    fontSize: 25,
+    lineHeight: 29,
   },
   categoryIcon: {
     alignItems: 'center',
-    backgroundColor: colors.softAccent,
-    borderRadius: 18,
-    height: 36,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 22,
+    height: 44,
     justifyContent: 'center',
-    width: 36,
+    width: 44,
   },
   categoryIconSelected: {
-    backgroundColor: '#FFE0BA',
+    backgroundColor: '#FFE7CA',
   },
   categoryLabel: {
     color: colors.muted,
@@ -365,7 +369,7 @@ const styles = StyleSheet.create({
   categoryRow: {
     flexDirection: 'row',
     gap: spacing.sm,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
   },
   categoryTile: {
     ...sharedShadow,
@@ -376,13 +380,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flex: 1,
     gap: 8,
-    height: 88,
+    height: 92,
     justifyContent: 'center',
     minWidth: 0,
   },
   categoryTileSelected: {
     borderColor: colors.primary,
-    shadowOpacity: 0.11,
+    backgroundColor: '#FFF9F2',
+    shadowOpacity: 0.1,
+  },
+  deliveryPill: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 7,
+  },
+  deliveryText: {
+    color: colors.ink,
+    fontSize: 12,
+    fontWeight: '800',
   },
   emptyBody: {
     color: colors.muted,
@@ -436,7 +459,8 @@ const styles = StyleSheet.create({
   },
   greeting: {
     color: colors.muted,
-    fontSize: 15,
+    fontSize: 14,
+    fontWeight: '700',
     lineHeight: 21,
   },
   header: {
@@ -496,10 +520,12 @@ const styles = StyleSheet.create({
     ...sharedShadow,
     alignItems: 'center',
     backgroundColor: colors.surface,
+    borderColor: colors.border,
     borderRadius: radii.lg,
+    borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.md,
-    minHeight: 104,
+    minHeight: 112,
     padding: spacing.md,
   },
   popularBadge: {
@@ -517,12 +543,14 @@ const styles = StyleSheet.create({
   },
   popularBody: {
     gap: spacing.sm,
-    padding: spacing.md,
+    padding: 14,
   },
   popularCard: {
     ...sharedShadow,
     backgroundColor: colors.surface,
+    borderColor: colors.border,
     borderRadius: radii.lg,
+    borderWidth: 1,
     flex: 1,
     minWidth: 0,
     overflow: 'hidden',
@@ -538,7 +566,7 @@ const styles = StyleSheet.create({
   },
   popularImageWrap: {
     backgroundColor: colors.softAccent,
-    height: 138,
+    height: 146,
     overflow: 'hidden',
   },
   price: {
@@ -582,8 +610,8 @@ const styles = StyleSheet.create({
   rowImage: {
     backgroundColor: colors.softAccent,
     borderRadius: radii.md,
-    height: 74,
-    width: 74,
+    height: 82,
+    width: 82,
   },
   rowPrice: {
     color: colors.ink,
@@ -600,7 +628,9 @@ const styles = StyleSheet.create({
     ...sharedShadow,
     alignItems: 'center',
     backgroundColor: colors.surface,
+    borderColor: colors.border,
     borderRadius: 26,
+    borderWidth: 1,
     flex: 1,
     flexDirection: 'row',
     gap: spacing.sm,
@@ -627,7 +657,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   sectionTitle: {
     color: colors.ink,
@@ -657,9 +687,9 @@ const styles = StyleSheet.create({
   },
   title: {
     color: colors.ink,
-    fontSize: 27,
+    fontSize: 29,
     fontWeight: '900',
-    lineHeight: 32,
+    lineHeight: 34,
     maxWidth: 270,
   },
   trendingPill: {

@@ -22,7 +22,7 @@ export async function parseOrderRequest(request: AiOrderRequest): Promise<AiOrde
 
   try {
     const rawResponse = await requestOpenAiOrderParse(request, getMenuItems());
-    return sanitizeAiOrderResponse(rawResponse);
+    return sanitizeAiOrderResponse(rawResponse, request);
   } catch (error) {
     return withFallbackError(parseOrderWithFallback(request), error);
   }
@@ -59,11 +59,16 @@ function getOpenAiClient() {
   return openaiClient;
 }
 
-function sanitizeAiOrderResponse(response: AiOrderResponse): AiOrderResponse {
+function sanitizeAiOrderResponse(
+  response: AiOrderResponse,
+  request: AiOrderRequest
+): AiOrderResponse {
   const errors: AiOrderError[] = [...(response.errors ?? [])];
-  const actions = response.actions.filter((action) => {
+  const cartItemIds = new Set(request.cart.map((line) => line.itemId));
+  let convertedMissingUpdate = false;
+  const actions = response.actions.reduce<CartAction[]>((safeActions, action) => {
     if (!hasItemId(action)) {
-      return true;
+      return [...safeActions, action];
     }
 
     const item = getMenuItemById(action.itemId);
@@ -73,7 +78,7 @@ function sanitizeAiOrderResponse(response: AiOrderResponse): AiOrderResponse {
         code: 'unknown_item',
         message: `I could not find "${action.itemId}" on the menu.`,
       });
-      return false;
+      return safeActions;
     }
 
     if (!item.available) {
@@ -82,22 +87,47 @@ function sanitizeAiOrderResponse(response: AiOrderResponse): AiOrderResponse {
         message: `${item.name} is currently unavailable.`,
         suggestions: getAvailableSuggestions(item.category),
       });
-      return false;
+      return safeActions;
     }
 
-    return true;
-  });
+    if (action.type === 'remove' && !cartItemIds.has(action.itemId)) {
+      errors.push({
+        code: 'validation_error',
+        message: `${item.name} is not currently in the cart.`,
+      });
+      return safeActions;
+    }
+
+    if (action.type === 'update' && !cartItemIds.has(action.itemId)) {
+      convertedMissingUpdate = true;
+      return [
+        ...safeActions,
+        {
+          itemId: action.itemId,
+          modifiers: action.modifiers,
+          quantity: action.quantity ?? 1,
+          type: 'add',
+        },
+      ];
+    }
+
+    return [...safeActions, action];
+  }, []);
 
   const hasErrors = errors.length > 0;
   const hasActions = actions.length > 0;
+  const firstAction = actions[0];
+  const assistantMessage =
+    convertedMissingUpdate && actions.length === 1 && firstAction && hasItemId(firstAction)
+      ? `Added ${getMenuItemById(firstAction.itemId)?.name ?? 'that item'} to your cart.`
+      : hasErrors && !hasActions
+        ? 'I could not confidently match that request to available cart items.'
+        : response.assistantMessage;
 
   return aiOrderResponseSchema.parse({
     ...response,
     actions,
-    assistantMessage:
-      hasErrors && !hasActions
-        ? 'I could not confidently match that request to available menu items.'
-        : response.assistantMessage,
+    assistantMessage,
     confidence: hasErrors ? Math.min(response.confidence, 0.65) : response.confidence,
     errors,
     intent: hasErrors && !hasActions ? 'clarification' : response.intent,
@@ -116,17 +146,23 @@ function getAvailableSuggestions(category: MenuItem['category']) {
 }
 
 function withFallbackError(response: AiOrderResponse, error: unknown): AiOrderResponse {
-  const message = error instanceof Error ? error.message : 'Unknown AI parsing error';
+  const isDevelopment = env.nodeEnv !== 'production';
+  const detail = error instanceof Error ? error.message : 'Unknown AI parsing error';
+  const fallbackParserResolvedRequest = response.actions.length > 0;
 
   return aiOrderResponseSchema.parse({
     ...response,
     confidence: Math.min(response.confidence, 0.82),
-    errors: [
-      ...(response.errors ?? []),
-      {
-        code: 'validation_error',
-        message: `OpenAI parsing failed, so the deterministic fallback parser was used. ${message}`,
-      },
-    ],
+    errors: fallbackParserResolvedRequest
+      ? response.errors
+      : [
+          ...(response.errors ?? []),
+          {
+            code: 'validation_error',
+            message: isDevelopment
+              ? `OpenAI parsing was unavailable, so the local parser handled this request. ${detail}`
+              : 'The assistant used local order parsing for this request.',
+          },
+        ],
   });
 }

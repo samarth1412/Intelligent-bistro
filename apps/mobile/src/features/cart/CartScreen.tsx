@@ -56,7 +56,7 @@ export function CartScreen() {
         <>
           <View style={styles.savingsBanner}>
             <FontAwesome color={colors.success} name="leaf" size={15} />
-            <Text style={styles.savingsText}>Fresh picks are ready for checkout.</Text>
+            <Text style={styles.savingsText}>Fresh picks are ready for checkout</Text>
           </View>
 
           <View style={styles.cartList}>
@@ -184,11 +184,11 @@ function titleCase(value: string) {
 }
 
 const sharedShadow = {
-  elevation: 6,
+  elevation: 5,
   shadowColor: colors.cardShadow,
-  shadowOffset: { width: 0, height: 8 },
-  shadowOpacity: 0.08,
-  shadowRadius: 18,
+  shadowOffset: { width: 0, height: 10 },
+  shadowOpacity: 0.07,
+  shadowRadius: 20,
 };
 
 const styles = StyleSheet.create({
@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
     ...sharedShadow,
     alignItems: 'center',
     backgroundColor: colors.ink,
-    borderRadius: radii.lg,
+    borderRadius: 22,
     flexDirection: 'row',
     gap: spacing.md,
     height: 56,
@@ -230,6 +230,10 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 22,
+    borderWidth: 1,
     height: 44,
     justifyContent: 'center',
     width: 44,
@@ -266,7 +270,9 @@ const styles = StyleSheet.create({
     ...sharedShadow,
     alignItems: 'center',
     backgroundColor: colors.surface,
+    borderColor: colors.border,
     borderRadius: radii.lg,
+    borderWidth: 1,
     gap: spacing.md,
     justifyContent: 'center',
     minHeight: 330,
@@ -297,17 +303,19 @@ const styles = StyleSheet.create({
   lineCard: {
     ...sharedShadow,
     backgroundColor: colors.surface,
+    borderColor: colors.border,
     borderRadius: radii.lg,
+    borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.md,
-    minHeight: 122,
+    minHeight: 126,
     padding: spacing.md,
   },
   lineImage: {
     backgroundColor: colors.softAccent,
     borderRadius: radii.md,
-    height: 78,
-    width: 78,
+    height: 82,
+    width: 82,
   },
   linePrice: {
     color: colors.ink,
@@ -350,7 +358,7 @@ const styles = StyleSheet.create({
   },
   quantityStepper: {
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceMuted,
     borderColor: colors.border,
     borderRadius: radii.md,
     borderWidth: 1,
@@ -381,7 +389,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     justifyContent: 'center',
     marginBottom: spacing.lg,
-    minHeight: 48,
+    minHeight: 50,
     paddingHorizontal: spacing.md,
   },
   savingsText: {
@@ -398,7 +406,9 @@ const styles = StyleSheet.create({
   summaryCard: {
     ...sharedShadow,
     backgroundColor: colors.surface,
+    borderColor: colors.border,
     borderRadius: radii.lg,
+    borderWidth: 1,
     gap: spacing.md,
     padding: spacing.lg,
   },

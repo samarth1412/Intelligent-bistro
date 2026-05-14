@@ -55,7 +55,8 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingBottom: spacing.md,
+    paddingTop: spacing.lg,
   },
   frame: {
     alignSelf: 'center',
@@ -65,7 +66,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: spacing.lg,
-    paddingBottom: 112,
-    paddingTop: spacing.md,
+    paddingBottom: 118,
+    paddingTop: spacing.lg,
   },
 });

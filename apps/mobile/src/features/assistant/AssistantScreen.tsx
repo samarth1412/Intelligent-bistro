@@ -1,7 +1,8 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import type { AiOrderError, CartAction } from '@intelligent-bistro/contracts';
+import type { AiOrderError, CartAction, MenuItem } from '@intelligent-bistro/contracts';
 import { useMemo, useRef, useState } from 'react';
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -33,6 +34,8 @@ type ChatMessage = {
   confidence?: number;
   errors?: AiOrderError[];
 };
+
+type MenuItemLookup = Record<string, MenuItem>;
 
 const quickPrompts = [
   'Add two spicy chicken sandwiches and a large water',
@@ -89,9 +92,11 @@ export function AssistantScreen() {
     try {
       const response = await parseAssistantOrder({
         cart: cartPayload,
+        history: buildConversationHistory(messages),
         message: trimmedMessage,
       });
       const actionResults = applyCartActions(response.actions);
+      const assistantMessage = getAssistantMessage(response.assistantMessage, actionResults);
 
       setMessages((currentMessages) => [
         ...currentMessages,
@@ -101,7 +106,7 @@ export function AssistantScreen() {
           errors: response.errors,
           id: createMessageId('assistant'),
           role: 'assistant',
-          text: response.assistantMessage,
+          text: assistantMessage,
           timestamp: new Date(),
         },
       ]);
@@ -163,27 +168,30 @@ export function AssistantScreen() {
           showsVerticalScrollIndicator={false}
           style={styles.chatPanel}>
           {messages.map((message) => (
-            <MessageBubble key={message.id} message={message} />
+            <MessageBubble key={message.id} menuItemsById={itemsById} message={message} />
           ))}
           {isSending ? <TypingBubble /> : null}
         </ScrollView>
 
-        <ScrollView
-          contentContainerStyle={styles.quickPromptRow}
-          horizontal
-          showsHorizontalScrollIndicator={false}>
-          {quickPrompts.map((prompt) => (
-            <Pressable
-              disabled={isSending || isMenuLoading || !!menuError}
-              key={prompt}
-              onPress={() => sendMessage(prompt)}
-              style={styles.quickPrompt}>
-              <Text numberOfLines={1} style={styles.quickPromptText}>
-                {prompt}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
+        <View style={styles.quickPromptShelf}>
+          <ScrollView
+            contentContainerStyle={styles.quickPromptRow}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.quickPromptScroll}>
+            {quickPrompts.map((prompt) => (
+              <Pressable
+                disabled={isSending || isMenuLoading || !!menuError}
+                key={prompt}
+                onPress={() => sendMessage(prompt)}
+                style={styles.quickPrompt}>
+                <Text numberOfLines={1} style={styles.quickPromptText}>
+                  {prompt}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
 
         <View style={styles.composer}>
           <TextInput
@@ -215,7 +223,13 @@ export function AssistantScreen() {
   );
 }
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function MessageBubble({
+  menuItemsById,
+  message,
+}: {
+  menuItemsById: MenuItemLookup;
+  message: ChatMessage;
+}) {
   const isUser = message.role === 'user';
 
   return (
@@ -230,7 +244,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           {message.text}
         </Text>
         {message.actionResults && message.actionResults.length > 0 ? (
-          <ActionHistory results={message.actionResults} />
+          <ActionHistory menuItemsById={menuItemsById} results={message.actionResults} />
         ) : null}
         {message.errors && message.errors.length > 0 ? <ErrorList errors={message.errors} /> : null}
         <View style={styles.messageMetaRow}>
@@ -244,21 +258,73 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   );
 }
 
-function ActionHistory({ results }: { results: CartActionResult[] }) {
+function ActionHistory({
+  menuItemsById,
+  results,
+}: {
+  menuItemsById: MenuItemLookup;
+  results: CartActionResult[];
+}) {
   return (
     <View style={styles.actionHistory}>
       <Text style={styles.actionHistoryTitle}>Cart actions</Text>
       {results.map((result, index) => (
-        <View key={`${result.action.type}-${index}`} style={styles.actionRow}>
-          <View
-            style={[
-              styles.actionDot,
-              result.status === 'applied' ? styles.actionDotApplied : styles.actionDotMuted,
-            ]}
-          />
-          <Text style={styles.actionText}>{formatActionResult(result)}</Text>
-        </View>
+        <ActionHistoryRow
+          key={`${result.action.type}-${index}`}
+          menuItemsById={menuItemsById}
+          result={result}
+        />
       ))}
+    </View>
+  );
+}
+
+function ActionHistoryRow({
+  menuItemsById,
+  result,
+}: {
+  menuItemsById: MenuItemLookup;
+  result: CartActionResult;
+}) {
+  const itemId = 'itemId' in result.action ? result.action.itemId : undefined;
+  const item = itemId ? menuItemsById[itemId] : undefined;
+  const quantity = 'quantity' in result.action ? result.action.quantity : undefined;
+  const modifiers = 'modifiers' in result.action ? result.action.modifiers : [];
+
+  if (!item) {
+    return (
+      <View style={styles.actionRow}>
+        <View
+          style={[
+            styles.actionDot,
+            result.status === 'applied' ? styles.actionDotApplied : styles.actionDotMuted,
+          ]}
+        />
+        <Text style={styles.actionText}>{formatActionResult(result)}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.actionPreviewRow}>
+      <Image source={{ uri: item.imageUrl }} style={styles.actionImage} />
+      <View style={styles.actionPreviewBody}>
+        <Text numberOfLines={1} style={styles.actionItemName}>
+          {item.name}
+        </Text>
+        <Text numberOfLines={1} style={styles.actionItemMeta}>
+          {formatActionMeta(result.action.type, quantity, modifiers)}
+        </Text>
+      </View>
+      <View
+        style={[
+          styles.actionStatusPill,
+          result.status === 'applied' ? styles.actionStatusApplied : styles.actionStatusMuted,
+        ]}>
+        <Text style={styles.actionStatusText}>
+          {result.status === 'applied' ? 'Done' : 'Review'}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -304,6 +370,37 @@ function formatActionResult(result: CartActionResult) {
   return `${statusLabel}: ${result.message}`;
 }
 
+function getAssistantMessage(defaultMessage: string, actionResults: CartActionResult[]) {
+  const failedResult = actionResults.find(
+    (result) => result.status === 'missing_item' || result.status === 'not_found'
+  );
+
+  return failedResult?.message ?? defaultMessage;
+}
+
+function formatActionMeta(type: CartAction['type'], quantity?: number, modifiers: string[] = []) {
+  const detailParts = [
+    type === 'add'
+      ? `Add ${quantity ?? 1}`
+      : type === 'remove'
+        ? quantity
+          ? `Remove ${quantity}`
+          : 'Remove'
+        : type === 'update'
+          ? quantity
+            ? `Set qty ${quantity}`
+            : 'Update'
+          : titleCase(type),
+    modifiers.length > 0 ? titleCase(modifiers.join(', ')) : undefined,
+  ].filter(Boolean);
+
+  return detailParts.join(' / ');
+}
+
+function titleCase(value: string) {
+  return value.replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 function formatTime(date: Date) {
   return date.toLocaleTimeString([], {
     hour: 'numeric',
@@ -315,12 +412,19 @@ function createMessageId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function buildConversationHistory(messages: ChatMessage[]) {
+  return messages.slice(-8).map((message) => ({
+    content: message.text,
+    role: message.role,
+  }));
+}
+
 const sharedShadow = {
-  elevation: 6,
+  elevation: 5,
   shadowColor: colors.cardShadow,
-  shadowOffset: { width: 0, height: 8 },
-  shadowOpacity: 0.08,
-  shadowRadius: 18,
+  shadowOffset: { width: 0, height: 10 },
+  shadowOpacity: 0.07,
+  shadowRadius: 20,
 };
 
 const styles = StyleSheet.create({
@@ -337,8 +441,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.muted,
   },
   actionHistory: {
-    backgroundColor: '#F8F1E8',
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.border,
     borderRadius: radii.md,
+    borderWidth: 1,
     gap: 7,
     marginTop: spacing.md,
     padding: spacing.md,
@@ -349,9 +455,60 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     textTransform: 'uppercase',
   },
+  actionImage: {
+    backgroundColor: colors.softAccent,
+    borderRadius: radii.sm,
+    height: 46,
+    width: 46,
+  },
+  actionItemMeta: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+  },
+  actionItemName: {
+    color: colors.ink,
+    fontSize: 13,
+    fontWeight: '900',
+    lineHeight: 18,
+  },
+  actionPreviewBody: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
+  actionPreviewRow: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    minHeight: 64,
+    padding: spacing.sm,
+  },
   actionRow: {
     flexDirection: 'row',
     gap: spacing.sm,
+  },
+  actionStatusApplied: {
+    backgroundColor: colors.success,
+  },
+  actionStatusMuted: {
+    backgroundColor: colors.danger,
+  },
+  actionStatusPill: {
+    borderRadius: radii.full,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  actionStatusText: {
+    color: colors.onPrimary,
+    fontSize: 10,
+    fontWeight: '900',
+    textTransform: 'uppercase',
   },
   actionText: {
     color: colors.muted,
@@ -370,7 +527,9 @@ const styles = StyleSheet.create({
   },
   assistantBubble: {
     backgroundColor: colors.surface,
+    borderColor: colors.border,
     borderBottomLeftRadius: 6,
+    borderWidth: 1,
   },
   assistantMessageRow: {
     alignItems: 'flex-end',
@@ -477,7 +636,8 @@ const styles = StyleSheet.create({
     ...sharedShadow,
     borderRadius: radii.lg,
     maxWidth: '84%',
-    padding: spacing.md,
+    paddingHorizontal: 15,
+    paddingVertical: spacing.md,
   },
   messageMetaRow: {
     alignItems: 'center',
@@ -494,15 +654,30 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   quickPrompt: {
-    backgroundColor: colors.softAccent,
+    alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
     borderRadius: radii.full,
+    borderWidth: 1,
+    height: 36,
+    justifyContent: 'center',
     maxWidth: 220,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
   },
   quickPromptRow: {
+    alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.sm,
+    paddingRight: spacing.md,
+  },
+  quickPromptScroll: {
+    flexGrow: 0,
+  },
+  quickPromptShelf: {
+    flexShrink: 0,
+    height: 44,
+    justifyContent: 'center',
     marginBottom: spacing.sm,
     marginTop: spacing.sm,
   },
@@ -542,6 +717,8 @@ const styles = StyleSheet.create({
     lineHeight: 35,
   },
   typingBubble: {
+    borderColor: colors.border,
+    borderWidth: 1,
     flexDirection: 'row',
     gap: 5,
     paddingVertical: spacing.md,
@@ -555,6 +732,8 @@ const styles = StyleSheet.create({
   userBubble: {
     backgroundColor: colors.softAccent,
     borderBottomRightRadius: 6,
+    borderColor: '#FFE1BC',
+    borderWidth: 1,
   },
   userMessageRow: {
     alignItems: 'flex-end',

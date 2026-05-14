@@ -61,6 +61,7 @@ intelligent-bistro/
     contracts/    Shared Zod schemas and TypeScript types
   docs/
     architecture.md
+    ai-system-prompt.md
     demo-script.md
   README.md
   .env.example
@@ -94,6 +95,8 @@ OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4.1-mini
 EXPO_PUBLIC_API_URL=http://localhost:4000
 ```
+
+The full backend prompt and response rules are documented in [docs/ai-system-prompt.md](docs/ai-system-prompt.md).
 
 Run the backend:
 
@@ -173,4 +176,3 @@ Additional supported prompts:
 | `Change chicken sandwich quantity to 3` | Updates quantity |
 | `Clear my cart` | Clears the cart |
 | `What's in my cart?` | Returns a cart query response |
-

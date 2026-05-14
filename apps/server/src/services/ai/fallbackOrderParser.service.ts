@@ -36,10 +36,16 @@ type FallbackResponseDraft = {
 const numberWords = new Map<string, number>([
   ['a', 1],
   ['an', 1],
+  ['ek', 1],
   ['one', 1],
+  ['do', 2],
   ['two', 2],
+  ['teen', 3],
   ['three', 3],
+  ['char', 4],
+  ['chaar', 4],
   ['four', 4],
+  ['paanch', 5],
   ['five', 5],
   ['six', 6],
   ['seven', 7],
@@ -93,6 +99,16 @@ const itemAliases: Record<string, string[]> = {
 export function parseOrderWithFallback(request: AiOrderRequest): AiOrderResponse {
   const normalizedMessage = normalizeText(request.message);
 
+  if (isGreeting(normalizedMessage)) {
+    return createResponse({
+      actions: [],
+      assistantMessage:
+        'Hi, I can help you browse the menu, choose popular items, add food to your cart, update quantities, remove items, or summarize your cart.',
+      confidence: 0.92,
+      intent: 'smalltalk',
+    });
+  }
+
   if (isCartQuery(normalizedMessage)) {
     return createResponse({
       actions: [{ type: 'query' }],
@@ -100,6 +116,22 @@ export function parseOrderWithFallback(request: AiOrderRequest): AiOrderResponse
       confidence: 0.96,
       intent: 'cart_query',
     });
+  }
+
+  if (isMenuQuery(normalizedMessage)) {
+    return createMenuQueryResponse(normalizedMessage);
+  }
+
+  const menuItemInfo = createMenuItemInfoResponse(normalizedMessage);
+
+  if (menuItemInfo) {
+    return menuItemInfo;
+  }
+
+  const contextualResponse = parseContextualRequest(normalizedMessage, request);
+
+  if (contextualResponse) {
+    return contextualResponse;
   }
 
   if (isClearCart(normalizedMessage)) {
@@ -112,28 +144,26 @@ export function parseOrderWithFallback(request: AiOrderRequest): AiOrderResponse
   }
 
   if (isRemove(normalizedMessage)) {
-    return parseRemoveRequest(normalizedMessage);
+    return parseRemoveRequest(normalizedMessage, request.cart);
   }
 
   if (isUpdate(normalizedMessage)) {
-    return parseUpdateRequest(normalizedMessage);
+    return parseUpdateRequest(normalizedMessage, request.cart);
   }
 
   if (isAdd(normalizedMessage)) {
     return parseAddRequest(normalizedMessage);
   }
 
+  if (looksLikeFoodOrder(normalizedMessage)) {
+    return parseAddRequest(normalizedMessage);
+  }
+
   return createResponse({
     actions: [],
     assistantMessage:
-      'I can help add, remove, update, clear, or summarize your cart. Try "add 2 burgers" or "clear my cart".',
-    confidence: 0.25,
-    errors: [
-      {
-        code: 'validation_error',
-        message: 'The fallback parser could not determine a supported cart intent.',
-      },
-    ],
+      'I can help with the menu and your cart. Ask what you can order, request a recommendation, or tell me what to add.',
+    confidence: 0.45,
     intent: 'unknown',
   });
 }
@@ -141,7 +171,23 @@ export function parseOrderWithFallback(request: AiOrderRequest): AiOrderResponse
 function parseAddRequest(message: string) {
   const actions: CartAction[] = [];
   const errors: AiOrderError[] = [];
-  const segments = splitOrderSegments(stripIntentWords(message, ['add', 'order', 'get']));
+  const segments = splitOrderSegments(
+    stripIntentWords(message, [
+      'add',
+      'can',
+      'could',
+      'give',
+      'grab',
+      'have',
+      'i',
+      'like',
+      'need',
+      'order',
+      'please',
+      'want',
+      'would',
+    ])
+  );
 
   for (const segment of segments) {
     const quantity = extractQuantity(segment) ?? 1;
@@ -173,7 +219,7 @@ function parseAddRequest(message: string) {
   });
 }
 
-function parseRemoveRequest(message: string) {
+function parseRemoveRequest(message: string, cart: AiOrderRequest['cart']) {
   const match = resolveMenuItem(stripIntentWords(message, ['remove', 'delete', 'take out']));
 
   if (match.status !== 'matched') {
@@ -187,6 +233,22 @@ function parseRemoveRequest(message: string) {
   }
 
   const quantity = extractQuantity(message, false);
+
+  if (!cart.some((line) => line.itemId === match.item.id)) {
+    return createResponse({
+      actions: [],
+      assistantMessage: `${match.item.name} is not in your cart yet.`,
+      confidence: 0.84,
+      errors: [
+        {
+          code: 'validation_error',
+          message: `${match.item.name} is not currently in the cart.`,
+        },
+      ],
+      intent: 'clarification',
+    });
+  }
+
   const action: CartAction = {
     itemId: match.item.id,
     modifiers: [],
@@ -202,7 +264,7 @@ function parseRemoveRequest(message: string) {
   });
 }
 
-function parseUpdateRequest(message: string) {
+function parseUpdateRequest(message: string, cart: AiOrderRequest['cart']) {
   const match = resolveMenuItem(
     stripIntentWords(message, ['change', 'make', 'set', 'update', 'quantity'])
   );
@@ -235,6 +297,22 @@ function parseUpdateRequest(message: string) {
     });
   }
 
+  if (!cart.some((line) => line.itemId === match.item.id)) {
+    const action: CartAction = {
+      itemId: match.item.id,
+      modifiers,
+      quantity: quantity ?? 1,
+      type: 'add',
+    };
+
+    return createResponse({
+      actions: [action],
+      assistantMessage: `Added ${formatActionList([action])} to your cart.`,
+      confidence: 0.82,
+      intent: 'cart_update',
+    });
+  }
+
   return createResponse({
     actions: [
       {
@@ -248,6 +326,56 @@ function parseUpdateRequest(message: string) {
     confidence: 0.86,
     intent: 'cart_update',
   });
+}
+
+function parseContextualRequest(message: string, request: AiOrderRequest) {
+  if (!/\b(that|those|it|one|first|second|third|last)\b/.test(message)) {
+    return undefined;
+  }
+
+  const referencedMatch = resolveContextualMenuItem(message, request);
+
+  if (!referencedMatch) {
+    return undefined;
+  }
+
+  if (referencedMatch.status === 'ambiguous') {
+    return createResponse({
+      actions: [],
+      assistantMessage: `I mentioned ${formatMenuItems(referencedMatch.matches)}. Which one should I use?`,
+      confidence: 0.62,
+      intent: 'clarification',
+    });
+  }
+
+  const quantity = extractQuantity(message) ?? 1;
+  const modifiers = extractModifiers(message);
+
+  if (isRemove(message)) {
+    return parseRemoveRequest(`remove ${referencedMatch.item.name}`, request.cart);
+  }
+
+  if (isUpdate(message)) {
+    return parseUpdateRequest(`update ${referencedMatch.item.name} ${message}`, request.cart);
+  }
+
+  if (isAdd(message)) {
+    const action: CartAction = {
+      itemId: referencedMatch.item.id,
+      modifiers,
+      quantity,
+      type: 'add',
+    };
+
+    return createResponse({
+      actions: [action],
+      assistantMessage: `Added ${formatActionList([action])} to your cart.`,
+      confidence: 0.82,
+      intent: 'cart_update',
+    });
+  }
+
+  return undefined;
 }
 
 function resolveMenuItem(input: string): ItemMatch {
@@ -290,6 +418,106 @@ function resolveMenuItem(input: string): ItemMatch {
     item: bestMatch.item,
     status: 'matched',
   };
+}
+
+function resolveContextualMenuItem(
+  input: string,
+  request: AiOrderRequest
+): Extract<ItemMatch, { status: 'matched' | 'ambiguous' }> | undefined {
+  const mentionedItems = getRecentMentionedMenuItems(request.history);
+
+  if (mentionedItems.length === 0) {
+    return undefined;
+  }
+
+  const index = getRequestedMentionIndex(input, mentionedItems.length);
+  const indexedItem = index !== undefined ? mentionedItems[index] : undefined;
+
+  if (indexedItem) {
+    return {
+      item: indexedItem,
+      status: 'matched',
+    };
+  }
+
+  const onlyMentionedItem = mentionedItems[0];
+
+  if (onlyMentionedItem && mentionedItems.length === 1) {
+    return {
+      item: onlyMentionedItem,
+      status: 'matched',
+    };
+  }
+
+  return {
+    matches: mentionedItems.slice(0, 5),
+    status: 'ambiguous',
+    term: input,
+  };
+}
+
+function getRecentMentionedMenuItems(history: AiOrderRequest['history']) {
+  const availableItems = getMenuItems().filter((item) => item.available);
+
+  for (const message of [...history].reverse()) {
+    const normalizedContent = normalizeText(message.content);
+    const matches = availableItems
+      .map((item) => ({
+        item,
+        index: findMenuItemMentionIndex(normalizedContent, item),
+      }))
+      .filter((match) => match.index >= 0)
+      .sort((a, b) => a.index - b.index)
+      .map((match) => match.item);
+
+    if (matches.length > 0) {
+      return matches;
+    }
+  }
+
+  return [];
+}
+
+function findMenuItemMentionIndex(input: string, item: MenuItem) {
+  const candidates = [
+    item.name,
+    item.id.replace(/_/g, ' '),
+    ...(itemAliases[item.id] ?? []).filter(isSpecificAlias),
+  ].map(normalizeText);
+  const indexes = candidates
+    .map((candidate) => input.indexOf(candidate))
+    .filter((index) => index >= 0);
+
+  return indexes.length > 0 ? Math.min(...indexes) : -1;
+}
+
+function isSpecificAlias(alias: string) {
+  const normalizedAlias = normalizeText(alias);
+
+  return (
+    normalizedAlias.split(' ').length > 1 &&
+    !['burger', 'sandwich', 'drink', 'fries', 'water', 'soda', 'cake'].includes(normalizedAlias)
+  );
+}
+
+function getRequestedMentionIndex(input: string, totalMentions: number) {
+  if (/\b(first|1st)\b/.test(input)) {
+    return 0;
+  }
+
+  if (/\b(second|2nd)\b/.test(input)) {
+    return totalMentions > 1 ? 1 : undefined;
+  }
+
+  if (/\b(third|3rd)\b/.test(input)) {
+    return totalMentions > 2 ? 2 : undefined;
+  }
+
+  if (/\blast\b/.test(input)) {
+    return totalMentions - 1;
+  }
+
+  return undefined;
 }
 
 function getGenericAmbiguity(input: string, menuItems: MenuItem[]): ItemMatch | undefined {
@@ -433,15 +661,15 @@ function removeQuantityWords(input: string) {
 }
 
 function isAdd(input: string) {
-  return /\b(add|order|get|want|need)\b/.test(input);
+  return /\b(add|get|want|need|have|grab|give|like)\b/.test(input) || isDirectOrder(input);
 }
 
 function isRemove(input: string) {
-  return /\b(remove|delete)\b|\btake\s+out\b/.test(input);
+  return /\b(remove|delete|hata)\b|\btake\s+out\b|\bhata\s+do\b/.test(input);
 }
 
 function isUpdate(input: string) {
-  return /\b(make|change|set|update)\b|\bquantity\s+to\b/.test(input);
+  return /\b(make|change|set|update)\b|\bquantity\s+to\b|\bkar\s+do\b/.test(input);
 }
 
 function isClearCart(input: string) {
@@ -458,6 +686,26 @@ function isCartQuery(input: string) {
   );
 }
 
+function isGreeting(input: string) {
+  return /^(hi|hello|hey|yo|namaste|sup|good morning|good afternoon|good evening)\b/.test(input);
+}
+
+function isMenuQuery(input: string) {
+  return (
+    /\b(menu|menus|available|recommend|suggest|popular|best|special|specials)\b/.test(input) ||
+    /\bwhat\s+(can|could|should)\s+i\s+(order|get|eat|try)\b/.test(input) ||
+    /\bwhat\s+do\s+you\s+(have|serve|recommend)\b/.test(input) ||
+    /\bwhat\s+(burgers|sandwiches|drinks|sides|desserts|options)\b/.test(input) ||
+    /\bwhat'?s\s+good\b/.test(input) ||
+    /\bshow\s+me\b.*\b(burgers|sandwiches|drinks|sides|desserts|menu|options)\b/.test(input) ||
+    /\bdo\s+you\s+have\b|\bhave\s+you\s+got\b/.test(input)
+  );
+}
+
+function isDirectOrder(input: string) {
+  return /\b(order)\b/.test(input) && looksLikeFoodOrder(input);
+}
+
 function createCartSummaryMessage(request: AiOrderRequest) {
   if (request.cart.length === 0) {
     return 'Your cart is currently empty.';
@@ -469,6 +717,148 @@ function createCartSummaryMessage(request: AiOrderRequest) {
     .join(', ');
 
   return `Your cart has ${summary}.`;
+}
+
+function createMenuQueryResponse(input: string) {
+  const itemInfoResponse = createMenuItemInfoResponse(input);
+
+  if (itemInfoResponse) {
+    return itemInfoResponse;
+  }
+
+  const availableItems = getMenuItems().filter((item) => item.available);
+  const category = findRequestedCategory(input);
+  const tag = findRequestedTag(input);
+  const scopedItems = availableItems.filter((item) => {
+    const categoryMatches = category ? item.category === category : true;
+    const tagMatches = tag ? item.tags.includes(tag) : true;
+
+    return categoryMatches && tagMatches;
+  });
+
+  if (scopedItems.length > 0 && (category || tag)) {
+    return createResponse({
+      actions: [],
+      assistantMessage: `You can order ${formatMenuItems(scopedItems.slice(0, 6))}.`,
+      confidence: 0.9,
+      intent: 'menu_query',
+    });
+  }
+
+  if (/\b(recommend|suggest|popular|best|special|specials|good)\b/.test(input)) {
+    const popularItems = availableItems.filter((item) => item.tags.includes('popular')).slice(0, 5);
+
+    return createResponse({
+      actions: [],
+      assistantMessage: `Popular picks are ${formatMenuItems(popularItems)}. I can add any of them if you tell me the quantity.`,
+      confidence: 0.88,
+      intent: 'menu_query',
+    });
+  }
+
+  return createResponse({
+    actions: [],
+    assistantMessage: `You can order from Burgers, Sandwiches, Drinks, Sides, and Desserts. Popular picks include ${formatMenuItems(
+      availableItems.filter((item) => item.tags.includes('popular')).slice(0, 4)
+    )}.`,
+    confidence: 0.9,
+    intent: 'menu_query',
+  });
+}
+
+function createMenuItemInfoResponse(input: string) {
+  if (!/\b(price|cost|how much|tell me|describe|details?|do you have|have you got|is there)\b/.test(input)) {
+    return undefined;
+  }
+
+  const match = resolveMenuItem(input);
+
+  if (match.status === 'matched') {
+    return createResponse({
+      actions: [],
+      assistantMessage: `${match.item.name} is ${formatPrice(match.item.price)}. ${match.item.description}`,
+      confidence: 0.9,
+      intent: 'menu_query',
+    });
+  }
+
+  if (match.status === 'ambiguous') {
+    return createResponse({
+      actions: [],
+      assistantMessage: `I found a few matches: ${formatMenuItems(match.matches.slice(0, 5))}. Which one do you mean?`,
+      confidence: 0.7,
+      errors: [createMatchError(match)],
+      intent: 'clarification',
+    });
+  }
+
+  return undefined;
+}
+
+function looksLikeFoodOrder(input: string) {
+  return getMenuItems()
+    .filter((item) => item.available)
+    .some((item) => scoreItemMatch(normalizeText(removeQuantityWords(input)), item) > 0);
+}
+
+function findRequestedCategory(input: string): MenuItem['category'] | undefined {
+  if (/\bburgers?\b/.test(input)) {
+    return 'Burgers';
+  }
+
+  if (/\bsandwich(es)?\b|\bpanini\b/.test(input)) {
+    return 'Sandwiches';
+  }
+
+  if (/\bdrinks?\b|\bbeverages?\b|\bsoda\b|\bwater\b/.test(input)) {
+    return 'Drinks';
+  }
+
+  if (/\bsides?\b|\bfries\b|\bsalad\b/.test(input)) {
+    return 'Sides';
+  }
+
+  if (/\bdesserts?\b|\bsweets?\b|\bcake\b|\bbrownie\b|\bcheesecake\b/.test(input)) {
+    return 'Desserts';
+  }
+
+  return undefined;
+}
+
+function findRequestedTag(input: string): MenuItem['tags'][number] | undefined {
+  if (/\bspicy\b|\bhot\b/.test(input)) {
+    return 'spicy';
+  }
+
+  if (/\bvegan\b/.test(input)) {
+    return 'vegan';
+  }
+
+  if (/\bvegetarian\b|\bveg\b/.test(input)) {
+    return 'vegetarian';
+  }
+
+  if (/\bpopular\b|\bbest\b|\bspecial\b/.test(input)) {
+    return 'popular';
+  }
+
+  if (/\bpremium\b/.test(input)) {
+    return 'premium';
+  }
+
+  if (/\bclassic\b/.test(input)) {
+    return 'classic';
+  }
+
+  return undefined;
+}
+
+function formatMenuItems(items: MenuItem[]) {
+  return items.map((item) => `${item.name} (${formatPrice(item.price)})`).join(', ');
+}
+
+function formatPrice(price: number) {
+  return `$${price.toFixed(2)}`;
 }
 
 function formatActionList(actions: CartAction[]) {
