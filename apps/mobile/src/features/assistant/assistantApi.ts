@@ -1,13 +1,18 @@
 import {
-  aiOrderResponseSchema,
-  type AiOrderRequest,
-  type AiOrderResponse,
+  assistantMessageResponseSchema,
+  type AssistantMessageRequest,
+  type AssistantMessageResponse,
 } from '@intelligent-bistro/contracts';
 
 import { postJson } from '@/src/lib/api';
 
-export async function parseAssistantOrder(request: AiOrderRequest): Promise<AiOrderResponse> {
-  const response = await postJson<AiOrderResponse, AiOrderRequest>('/api/ai/order', request);
+export async function sendAssistantMessage(
+  request: AssistantMessageRequest
+): Promise<AssistantMessageResponse> {
+  const response = await postJson<AssistantMessageResponse, AssistantMessageRequest>(
+    '/api/assistant/message',
+    request
+  );
 
-  return aiOrderResponseSchema.parse(response);
+  return assistantMessageResponseSchema.parse(response);
 }

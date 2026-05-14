@@ -692,13 +692,16 @@ function isGreeting(input: string) {
 
 function isMenuQuery(input: string) {
   return (
-    /\b(menu|menus|available|recommend|suggest|popular|best|special|specials)\b/.test(input) ||
+    /\b(menu|menus|available|recommend|suggest|popular|best|special|specials|options?)\b/.test(input) ||
     /\bwhat\s+(can|could|should)\s+i\s+(order|get|eat|try)\b/.test(input) ||
     /\bwhat\s+do\s+you\s+(have|serve|recommend)\b/.test(input) ||
     /\bwhat\s+(burgers|sandwiches|drinks|sides|desserts|options)\b/.test(input) ||
     /\bwhat'?s\s+good\b/.test(input) ||
     /\bshow\s+me\b.*\b(burgers|sandwiches|drinks|sides|desserts|menu|options)\b/.test(input) ||
-    /\bdo\s+you\s+have\b|\bhave\s+you\s+got\b/.test(input)
+    /\bdo\s+you\s+have\b|\bhave\s+you\s+got\b/.test(input) ||
+    /\bis\s+there\b.*\b(vegan|vegetarian|veg|gluten free|gluten-free|spicy|healthy)\b/.test(input) ||
+    /\bany\b.*\b(vegan|vegetarian|veg|gluten free|gluten-free|spicy|healthy)\b/.test(input) ||
+    /\b(i'?m|i\s+am)\s+(vegan|vegetarian|veg)\b/.test(input)
   );
 }
 
@@ -741,6 +744,16 @@ function createMenuQueryResponse(input: string) {
       actions: [],
       assistantMessage: `You can order ${formatMenuItems(scopedItems.slice(0, 6))}.`,
       confidence: 0.9,
+      intent: 'menu_query',
+    });
+  }
+
+  if ((category || tag) && scopedItems.length === 0) {
+    return createResponse({
+      actions: [],
+      assistantMessage:
+        'I do not see an available menu item that matches that preference right now.',
+      confidence: 0.82,
       intent: 'menu_query',
     });
   }

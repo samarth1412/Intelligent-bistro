@@ -37,7 +37,7 @@ async function requestOpenAiOrderParse(
     messages: buildOrderParserMessages(request, menuItems),
     model: env.openaiModel,
     response_format: { type: 'json_object' },
-    temperature: 0.1,
+    temperature: 0,
   });
 
   const content = completion.choices[0]?.message.content;

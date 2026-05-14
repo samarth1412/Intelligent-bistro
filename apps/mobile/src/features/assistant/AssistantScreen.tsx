@@ -1,5 +1,9 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import type { AiOrderError, CartAction, MenuItem } from '@intelligent-bistro/contracts';
+import type {
+  AssistantCartAction,
+  CartAction,
+  MenuItem,
+} from '@intelligent-bistro/contracts';
 import { useMemo, useRef, useState } from 'react';
 import {
   Image,
@@ -23,7 +27,7 @@ import { useMenu } from '@/src/features/menu/useMenu';
 import { colors } from '@/src/theme/colors';
 import { radii, spacing } from '@/src/theme/spacing';
 
-import { parseAssistantOrder } from './assistantApi';
+import { sendAssistantMessage } from './assistantApi';
 
 type ChatMessage = {
   id: string;
@@ -31,34 +35,36 @@ type ChatMessage = {
   text: string;
   timestamp: Date;
   actionResults?: CartActionResult[];
+  clarificationOptions?: string[];
   confidence?: number;
-  errors?: AiOrderError[];
+  referencedItemIds?: string[];
 };
 
 type MenuItemLookup = Record<string, MenuItem>;
 
 const quickPrompts = [
-  'Add two spicy chicken sandwiches and a large water',
-  'Make the coke large',
-  'What is in my cart?',
+  'What is good here?',
+  'Do you have vegan options?',
+  'Suggest a combo under $15',
 ];
 
 export function AssistantScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const [inputValue, setInputValue] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [lastReferencedItemIds, setLastReferencedItemIds] = useState<string[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
       role: 'assistant',
-      text: 'Tell me what to add, remove, update, clear, or ask what is in your cart.',
+      text: 'Ask me about the menu, tell me what you are craving, or order naturally.',
       timestamp: new Date(),
     },
   ]);
 
   const cartLines = useCartStore(selectCartLines);
   const applyActions = useCartStore((state) => state.applyActions);
-  const { error: menuError, isLoading: isMenuLoading, itemsById } = useMenu();
+  const { error: menuError, isLoading: isMenuLoading, items, itemsById } = useMenu();
 
   const canSend = inputValue.trim().length > 0 && !isSending && !isMenuLoading && !menuError;
   const cartPayload = useMemo(
@@ -90,23 +96,27 @@ export function AssistantScreen() {
     setIsSending(true);
 
     try {
-      const response = await parseAssistantOrder({
+      const response = await sendAssistantMessage({
         cart: cartPayload,
-        history: buildConversationHistory(messages),
+        conversationHistory: buildConversationHistory(messages),
+        lastReferencedItemIds,
+        menu: items,
         message: trimmedMessage,
       });
-      const actionResults = applyCartActions(response.actions);
-      const assistantMessage = getAssistantMessage(response.assistantMessage, actionResults);
+      const shouldApplyActions = response.confidence >= 0.6 && !response.needsClarification;
+      const actionResults = shouldApplyActions ? applyCartActions(response.actions) : [];
 
+      setLastReferencedItemIds(response.referencedItemIds);
       setMessages((currentMessages) => [
         ...currentMessages,
         {
           actionResults,
+          clarificationOptions: response.clarificationOptions,
           confidence: response.confidence,
-          errors: response.errors,
           id: createMessageId('assistant'),
+          referencedItemIds: response.referencedItemIds,
           role: 'assistant',
-          text: assistantMessage,
+          text: response.assistantMessage,
           timestamp: new Date(),
         },
       ]);
@@ -114,12 +124,6 @@ export function AssistantScreen() {
       setMessages((currentMessages) => [
         ...currentMessages,
         {
-          errors: [
-            {
-              code: 'validation_error',
-              message: 'The assistant service could not be reached.',
-            },
-          ],
           id: createMessageId('assistant'),
           role: 'assistant',
           text: 'I could not reach the ordering assistant. Check that the API server is running.',
@@ -131,12 +135,16 @@ export function AssistantScreen() {
     }
   }
 
-  function applyCartActions(actions: CartAction[]) {
+  function applyCartActions(actions: AssistantCartAction[]) {
     if (actions.length === 0) {
       return [];
     }
 
-    return applyActions(actions, itemsById);
+    return applyActions(actions.map(toCartAction), itemsById);
+  }
+
+  function sendClarificationChoice(option: string) {
+    sendMessage(`Add ${option}`);
   }
 
   return (
@@ -168,7 +176,12 @@ export function AssistantScreen() {
           showsVerticalScrollIndicator={false}
           style={styles.chatPanel}>
           {messages.map((message) => (
-            <MessageBubble key={message.id} menuItemsById={itemsById} message={message} />
+            <MessageBubble
+              key={message.id}
+              menuItemsById={itemsById}
+              message={message}
+              onClarificationSelect={sendClarificationChoice}
+            />
           ))}
           {isSending ? <TypingBubble /> : null}
         </ScrollView>
@@ -226,9 +239,11 @@ export function AssistantScreen() {
 function MessageBubble({
   menuItemsById,
   message,
+  onClarificationSelect,
 }: {
   menuItemsById: MenuItemLookup;
   message: ChatMessage;
+  onClarificationSelect: (option: string) => void;
 }) {
   const isUser = message.role === 'user';
 
@@ -246,7 +261,12 @@ function MessageBubble({
         {message.actionResults && message.actionResults.length > 0 ? (
           <ActionHistory menuItemsById={menuItemsById} results={message.actionResults} />
         ) : null}
-        {message.errors && message.errors.length > 0 ? <ErrorList errors={message.errors} /> : null}
+        {!isUser && message.clarificationOptions && message.clarificationOptions.length > 0 ? (
+          <ClarificationOptions
+            onSelect={onClarificationSelect}
+            options={message.clarificationOptions}
+          />
+        ) : null}
         <View style={styles.messageMetaRow}>
           {message.confidence !== undefined ? (
             <Text style={styles.confidenceText}>{Math.round(message.confidence * 100)}% confidence</Text>
@@ -254,6 +274,29 @@ function MessageBubble({
           <Text style={styles.timeText}>{formatTime(message.timestamp)}</Text>
         </View>
       </View>
+    </View>
+  );
+}
+
+function ClarificationOptions({
+  onSelect,
+  options,
+}: {
+  onSelect: (option: string) => void;
+  options: string[];
+}) {
+  return (
+    <View style={styles.clarificationOptions}>
+      {options.map((option) => (
+        <Pressable
+          key={option}
+          onPress={() => onSelect(option)}
+          style={styles.clarificationButton}>
+          <Text numberOfLines={1} style={styles.clarificationButtonText}>
+            {option}
+          </Text>
+        </Pressable>
+      ))}
     </View>
   );
 }
@@ -329,21 +372,6 @@ function ActionHistoryRow({
   );
 }
 
-function ErrorList({ errors }: { errors: AiOrderError[] }) {
-  return (
-    <View style={styles.errorList}>
-      {errors.map((error, index) => (
-        <View key={`${error.code}-${index}`} style={styles.errorBlock}>
-          <Text style={styles.errorMessage}>{error.message}</Text>
-          {error.suggestions && error.suggestions.length > 0 ? (
-            <Text style={styles.errorSuggestions}>Try: {error.suggestions.join(', ')}</Text>
-          ) : null}
-        </View>
-      ))}
-    </View>
-  );
-}
-
 function TypingBubble() {
   return (
     <View style={styles.assistantMessageRow}>
@@ -370,12 +398,40 @@ function formatActionResult(result: CartActionResult) {
   return `${statusLabel}: ${result.message}`;
 }
 
-function getAssistantMessage(defaultMessage: string, actionResults: CartActionResult[]) {
-  const failedResult = actionResults.find(
-    (result) => result.status === 'missing_item' || result.status === 'not_found'
-  );
-
-  return failedResult?.message ?? defaultMessage;
+function toCartAction(action: AssistantCartAction): CartAction {
+  switch (action.type) {
+    case 'add':
+      return {
+        itemId: action.itemId,
+        modifiers: action.modifiers,
+        quantity: action.quantity,
+        type: 'add',
+      };
+    case 'remove':
+      return {
+        itemId: action.itemId,
+        modifiers: action.modifiers,
+        quantity: action.quantity,
+        type: 'remove',
+      };
+    case 'update_quantity':
+      return {
+        itemId: action.itemId,
+        modifiers: action.modifiers,
+        quantity: action.quantity,
+        type: 'update',
+      };
+    case 'update_modifiers':
+      return {
+        itemId: action.itemId,
+        modifiers: action.modifiers,
+        type: 'update',
+      };
+    case 'clear_cart':
+      return {
+        type: 'clear',
+      };
+  }
 }
 
 function formatActionMeta(type: CartAction['type'], quantity?: number, modifiers: string[] = []) {
@@ -415,6 +471,7 @@ function createMessageId(prefix: string) {
 function buildConversationHistory(messages: ChatMessage[]) {
   return messages.slice(-8).map((message) => ({
     content: message.text,
+    referencedItemIds: message.referencedItemIds ?? [],
     role: message.role,
   }));
 }
@@ -555,6 +612,27 @@ const styles = StyleSheet.create({
   },
   chatPanel: {
     flex: 1,
+  },
+  clarificationButton: {
+    backgroundColor: colors.surface,
+    borderColor: colors.accent,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    maxWidth: '100%',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+  },
+  clarificationButtonText: {
+    color: colors.accentDark,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  clarificationOptions: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.md,
   },
   composer: {
     ...sharedShadow,
