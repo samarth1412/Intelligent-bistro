@@ -1,66 +1,124 @@
 # Intelligent Bistro
 
-Intelligent Bistro is a production-style take-home project for conversational restaurant ordering. It combines an Expo React Native mobile app with a TypeScript Express API so users can browse a menu, manage a cart, and use an AI assistant to update the cart through natural language.
+Intelligent Bistro is a production-style restaurant ordering app built with Expo React Native and a TypeScript Express backend. Users can browse a seeded bistro menu, manage a cart, and use a conversational AI assistant to ask menu questions, get recommendations, update the cart, and move to payment when the order is complete.
 
-The app is designed to run reliably with or without an OpenAI API key. When a key is available, the backend can call OpenAI. When it is not available, or when AI parsing fails, the backend uses a deterministic fallback parser so the demo remains usable.
+The assistant is intentionally backend-orchestrated. The mobile app never calls OpenAI directly; it sends cart, menu, and conversation context to the API, receives validated structured actions, and only then mutates local cart state.
 
-## Features
+## Preview
 
-- Menu browsing by category: Burgers, Sandwiches, Drinks, Sides, Desserts
-- Polished mobile-first UI with warm bistro styling, food imagery, cards, and bottom tabs
-- Zustand-powered cart with quantity controls, subtotal, tax, total, and empty state
-- Conversational assistant for adding, removing, updating, clearing, and querying the cart
-- Backend-only OpenAI integration with deterministic fallback parsing
-- Shared Zod contracts for menu data, cart actions, and AI responses
-- Structured assistant responses with `confidence`, `actions`, `assistantMessage`, and `errors`
-- Error handling for unknown and ambiguous menu items
+| Menu | Cart | AI Assistant |
+| --- | --- | --- |
+| <img src="./docs/screenshots/menu.png" width="250" /> | <img src="./docs/screenshots/cart.png" width="250" /> | <img src="./docs/screenshots/assistant.png" width="250" /> |
+
+## Highlights
+
+- Premium mobile UI with menu browsing, cart controls, assistant chat, voice input, and payment handoff
+- Conversational AI assistant that supports menu questions, recommendations, cart updates, clarification, and checkout intent
+- Context-aware ordering, including references like `that`, `those`, `add one`, `the burger`, and `make it large`
+- OpenAI-backed assistant pipeline with deterministic guards and fallback behavior for reliable demos
+- Shared Zod contracts across mobile and server for request and response validation
+- Server-side cart action validation before any action reaches the frontend
+- Seeded menu data with categories, prices, images, tags, availability, and variants
 
 ## Tech Stack
 
-| Area | Tools |
+| Layer | Technology |
 | --- | --- |
-| Mobile | Expo, React Native, TypeScript, Expo Router, Zustand |
-| Backend | Node.js, Express, TypeScript, Zod, OpenAI SDK |
-| Shared contracts | TypeScript workspace package, Zod schemas |
+| Mobile | Expo, React Native, TypeScript, Expo Router |
+| State | Zustand |
+| Backend | Node.js, Express, TypeScript |
+| Validation | Zod shared contracts |
+| AI | OpenAI API with deterministic fallback |
 | Data | Seeded JSON menu |
-| State/API | Zustand cart store, REST API |
+| Tooling | npm workspaces |
 
 ## Architecture
 
 ```mermaid
-flowchart TD
-  User[Mobile user] --> Mobile[Expo React Native app]
-  Mobile --> MenuUI[Menu screen]
-  Mobile --> CartUI[Cart screen]
-  Mobile --> AssistantUI[Assistant chat]
+flowchart LR
+  User[User] --> Mobile[Expo React Native App]
 
-  MenuUI --> MenuAPI[GET /api/menu]
-  AssistantUI --> AIAPI[POST /api/ai/order]
-  CartUI --> CartStore[Zustand cart store]
-  AssistantUI --> CartStore
+  subgraph MobileApp[Mobile App]
+    MenuScreen[Menu Screen]
+    CartScreen[Cart Screen]
+    AssistantScreen[AI Assistant Screen]
+    PaymentScreen[Payment Screen]
+    CartStore[Zustand Cart Store]
+  end
 
-  MenuAPI --> MenuData[Seed menu JSON]
-  AIAPI --> Contracts[Zod contracts]
-  AIAPI --> OpenAI[OpenAI API when configured]
-  AIAPI --> Fallback[Deterministic fallback parser]
-  OpenAI --> Sanitizer[Server-side action validation]
-  Fallback --> Sanitizer
-  Sanitizer --> AssistantUI
+  subgraph API[Express API]
+    MenuRoutes[Menu Routes]
+    AssistantRoute[POST /api/assistant/message]
+    Contracts[Zod Contracts]
+    MenuData[Seed Menu JSON]
+    AssistantService[Assistant Orchestration]
+    ActionValidator[Cart Action Validator]
+  end
+
+  subgraph AI[AI Layer]
+    OpenAI[OpenAI API]
+    Fallback[Deterministic Fallback]
+  end
+
+  Mobile --> MenuScreen
+  Mobile --> CartScreen
+  Mobile --> AssistantScreen
+  CartScreen --> PaymentScreen
+  AssistantScreen --> PaymentScreen
+  MenuScreen --> MenuRoutes
+  CartScreen --> CartStore
+  AssistantScreen --> CartStore
+  AssistantScreen --> AssistantRoute
+  MenuRoutes --> MenuData
+  AssistantRoute --> Contracts
+  AssistantRoute --> AssistantService
+  AssistantService --> OpenAI
+  AssistantService --> Fallback
+  OpenAI --> ActionValidator
+  Fallback --> ActionValidator
+  ActionValidator --> AssistantScreen
 ```
 
-More detail is available in [docs/architecture.md](docs/architecture.md).
+## Assistant Flow
 
-## Repository Structure
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant M as Mobile Assistant
+  participant S as Express Server
+  participant O as OpenAI
+  participant F as Fallback Parser
+  participant V as Zod + Action Validator
+  participant C as Cart Store
+
+  U->>M: "Add one burger with coke and ketchup"
+  M->>S: message + cart + menu + conversationHistory + lastReferencedItemIds
+  S->>S: Resolve context and checkout intent
+  alt OpenAI available
+    S->>O: Prompt with menu, cart, and conversation context
+    O-->>S: Structured JSON
+  else OpenAI unavailable or invalid
+    S->>F: Deterministic parsing
+    F-->>S: Structured JSON
+  end
+  S->>V: Validate schema, item IDs, quantities, modifiers, cart state
+  V-->>S: Safe assistant response
+  S-->>M: intent, assistantMessage, actions, clarification options, confidence
+  M->>C: Apply validated cart actions only
+```
+
+## Monorepo Structure
 
 ```text
 intelligent-bistro/
   apps/
-    mobile/       Expo React Native app
-    server/       Express TypeScript API
+    mobile/          Expo React Native app
+    server/          Express TypeScript API
   packages/
-    contracts/    Shared Zod schemas and TypeScript types
+    contracts/       Shared Zod schemas and inferred TypeScript types
   docs/
     architecture.md
+    assistant-context-examples.md
     ai-system-prompt.md
     demo-script.md
   README.md
@@ -68,55 +126,65 @@ intelligent-bistro/
   package.json
 ```
 
-## Setup
+## Getting Started
 
-Prerequisites:
+### Prerequisites
 
 - Node.js 20 or newer
 - npm
-- Expo-compatible browser or Expo Go for device testing
+- Expo web preview or Expo Go
+- Optional: OpenAI API key
 
-Install dependencies:
+### Install
 
 ```bash
 npm install
 ```
 
-Create environment files as needed:
+### Environment
+
+Create a local `.env` file from the example:
 
 ```bash
 cp .env.example .env
 ```
 
-OpenAI is optional:
-
 ```env
+PORT=4000
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4.1-mini
 EXPO_PUBLIC_API_URL=http://localhost:4000
 ```
 
-The full backend prompt and response rules are documented in [docs/ai-system-prompt.md](docs/ai-system-prompt.md).
+Keep real API keys in `.env` only. Do not commit secrets.
 
-Run the backend:
+### Run
+
+Start the backend:
 
 ```bash
 npm run dev:server
 ```
 
-Run the mobile app:
+Start the mobile app:
 
 ```bash
 npm run dev:mobile
 ```
 
-For web preview, use the Expo prompt or run:
+For Expo web preview:
 
 ```bash
 npm run web -w apps/mobile
 ```
 
 ## API Overview
+
+### Health
+
+```http
+GET /api/health
+```
 
 ### Menu
 
@@ -126,10 +194,10 @@ GET /api/menu?category=Burgers
 GET /api/menu/:itemId
 ```
 
-### AI Order Parsing
+### Assistant
 
 ```http
-POST /api/ai/order
+POST /api/assistant/message
 ```
 
 Request:
@@ -137,7 +205,10 @@ Request:
 ```json
 {
   "message": "Add two spicy chicken sandwiches and a large water",
-  "cart": []
+  "cart": [],
+  "menu": [],
+  "conversationHistory": [],
+  "lastReferencedItemIds": []
 }
 ```
 
@@ -146,33 +217,168 @@ Response:
 ```json
 {
   "intent": "cart_update",
+  "assistantMessage": "Added 2 Spicy Chicken Sandwiches and 1 Large Water to your cart.",
   "actions": [
     {
       "type": "add",
       "itemId": "spicy_chicken_sandwich",
       "quantity": 2,
-      "modifiers": []
+      "modifiers": [],
+      "reason": "User clearly ordered this item."
     },
     {
       "type": "add",
       "itemId": "large_water",
       "quantity": 1,
-      "modifiers": ["large"]
+      "modifiers": ["large"],
+      "reason": "User clearly ordered a large water."
     }
   ],
-  "assistantMessage": "Added 2 Spicy Chicken Sandwiches and 1 Large Water to your cart.",
-  "confidence": 0.88,
-  "errors": []
+  "needsClarification": false,
+  "clarificationOptions": [],
+  "referencedItemIds": ["spicy_chicken_sandwich", "large_water"],
+  "confidence": 0.95
 }
 ```
 
-Additional supported prompts:
+## Assistant Capabilities
 
-| Prompt | Expected action |
+| User intent | Example |
 | --- | --- |
-| `Add 2 burgers` | Adds a matched burger item |
-| `Remove the fries` | Removes fries from cart |
-| `Make the coke large` | Updates Coke modifiers |
-| `Change chicken sandwich quantity to 3` | Updates quantity |
-| `Clear my cart` | Clears the cart |
-| `What's in my cart?` | Returns a cart query response |
+| Menu question | `Do you have anything vegan?` |
+| Recommendation | `What is good here?` |
+| Context follow-up | `Add two of those` |
+| Add items | `Add one burger with coke and ketchup` |
+| Update cart | `Make the coke large` |
+| Remove items | `Remove the fries` |
+| Cart summary | `What's in my cart?` |
+| Checkout | `That's all, I'm ready to pay` |
+
+## Demo Scenarios
+
+Use these prompts to show the assistant's natural-language behavior and context resolution:
+
+- `What chicken options do you have?`
+- `Add one burger with coke and ketchup`
+- `Make the coke large`
+- `Remove the burger`
+- `What's in my cart?`
+- `I'm ready to pay`
+
+## Context Resolution
+
+The assistant tracks recent `referencedItemIds` so generic follow-ups resolve naturally.
+
+```mermaid
+flowchart TD
+  A[User asks: what chicken options do you have?] --> B[Assistant references Spicy Chicken Burger and Spicy Chicken Sandwich]
+  B --> C[User says: add one burger with coke and ketchup]
+  C --> D{Does burger match recent referenced items?}
+  D -->|One burger match| E[Resolve burger to Spicy Chicken Burger]
+  D -->|No context match| F[Search full menu]
+  E --> G[Add ketchup as modifier]
+  G --> H[Add Coke as separate drink item]
+  H --> I[Return validated cart actions]
+```
+
+Example result:
+
+```json
+{
+  "actions": [
+    {
+      "type": "add",
+      "itemId": "spicy_chicken_burger",
+      "quantity": 1,
+      "modifiers": ["ketchup"],
+      "reason": "User used a generic item word resolved from recent assistant context."
+    },
+    {
+      "type": "add",
+      "itemId": "coke",
+      "quantity": 1,
+      "modifiers": [],
+      "reason": "User clearly mentioned this menu item in the same request."
+    }
+  ]
+}
+```
+
+## Voice And Payment
+
+- Voice input is available in supported web previews through the browser Web Speech API.
+- Voice responses are spoken back after voice requests when browser speech synthesis is available.
+- If the user says the order is done, ready to pay, or wants checkout, the backend returns `checkout_intent`.
+- The mobile app routes to the payment screen when checkout intent is returned and the cart has items.
+- Native iOS/Android speech recognition can be added later with a native Expo speech package or backend audio transcription.
+
+## Validation And Safety
+
+```mermaid
+flowchart LR
+  Raw[Raw assistant output] --> Schema[Zod response schema]
+  Schema --> Items[Validate item IDs exist]
+  Items --> Availability[Validate item availability]
+  Availability --> Quantity[Validate quantity > 0]
+  Quantity --> Modifiers[Validate modifiers]
+  Modifiers --> CartState[Validate cart-dependent actions]
+  CartState --> Safe[Safe response to mobile]
+```
+
+The frontend does not trust raw assistant text. It applies only validated structured actions returned by the backend.
+
+## Testing
+
+Current verification commands:
+
+- `npm run typecheck`
+- `npm run lint`
+- `npm run build`
+
+Highest-value automated test coverage for this project:
+
+- Assistant schema validation tests
+- Cart action validation tests
+- Context resolution test cases
+- Fallback parser test cases
+
+## Scripts
+
+| Command | Description |
+| --- | --- |
+| `npm run dev:server` | Start the Express API in development mode |
+| `npm run dev:mobile` | Start the Expo mobile app |
+| `npm run typecheck` | Run TypeScript checks for all workspaces |
+| `npm run lint` | Run lint checks for all workspaces |
+| `npm run build` | Build shared contracts and server |
+
+## Quality Notes
+
+- TypeScript is used across mobile, server, and shared contracts.
+- Zod schemas define API boundaries.
+- Cart mutation is centralized in the Zustand store.
+- The assistant endpoint uses OpenAI when configured and falls back safely when unavailable.
+- The UI is mobile-first and optimized around repeated ordering workflows.
+
+## Development Process
+
+The project was built incrementally with meaningful commits across mobile UI, backend APIs, assistant orchestration, validation, and documentation.
+
+## Known Limitations
+
+- The menu is currently seeded JSON, not database-backed.
+- Payments are UI-only.
+- Voice input depends on browser support in Expo web preview.
+- Native mobile speech recognition can be added later.
+
+## Tradeoffs And Future Improvements
+
+- Add native speech-to-text for iOS and Android.
+- Add persistent cart and order history.
+- Add real payment provider integration.
+- Broaden automated unit test coverage for assistant context resolution and cart validation.
+- Add telemetry for assistant confidence and fallback usage.
+
+## AI Tools Used
+
+This project was built with AI-assisted development support for implementation, prompt iteration, and documentation. The application itself calls OpenAI only from the backend when `OPENAI_API_KEY` is configured.
