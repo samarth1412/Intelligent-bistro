@@ -15,7 +15,7 @@ The assistant is intentionally backend-orchestrated. The mobile app never calls 
 - Premium mobile UI with menu browsing, cart controls, assistant chat, voice input, and payment handoff
 - Conversational AI assistant that supports menu questions, recommendations, cart updates, clarification, and checkout intent
 - Context-aware ordering, including references like `that`, `those`, `add one`, `the burger`, and `make it large`
-- OpenAI-backed assistant pipeline with deterministic guards and fallback behavior for reliable demos
+- LLM-assisted ordering pipeline with deterministic validation and fallback parsing for production-style reliability
 - Shared Zod contracts across mobile and server for request and response validation
 - Server-side cart action validation before any action reaches the frontend
 - Seeded menu data with categories, prices, images, tags, availability, and variants
@@ -36,75 +36,71 @@ The assistant is intentionally backend-orchestrated. The mobile app never calls 
 
 ```mermaid
 flowchart LR
-  User[User] --> Mobile[Expo React Native App]
 
-  subgraph MobileApp[Mobile App]
-    MenuScreen[Menu Screen]
-    CartScreen[Cart Screen]
-    AssistantScreen[AI Assistant Screen]
-    PaymentScreen[Payment Screen]
-    CartStore[Zustand Cart Store]
+  User((User))
+
+  subgraph Mobile["Expo React Native App"]
+    Menu["Menu Experience"]
+    Cart["Cart State (Zustand)"]
+    Chat["AI Assistant"]
+    Checkout["Checkout Flow"]
   end
 
-  subgraph API[Express API]
-    MenuRoutes[Menu Routes]
-    AssistantRoute[POST /api/assistant/message]
-    Contracts[Zod Contracts]
-    MenuData[Seed Menu JSON]
-    AssistantService[Assistant Orchestration]
-    ActionValidator[Cart Action Validator]
+  subgraph Backend["Node.js + Express API"]
+    Assistant["Assistant Orchestrator"]
+    Validator["Action Validator"]
+    MenuAPI["Menu Service"]
+    Contracts["Shared Zod Contracts"]
   end
 
   subgraph AI[AI Layer]
-    OpenAI[OpenAI API]
-    Fallback[Deterministic Fallback]
+    OpenAI["OpenAI"]
+    Fallback["Fallback Parser"]
   end
 
-  Mobile --> MenuScreen
-  Mobile --> CartScreen
-  Mobile --> AssistantScreen
-  CartScreen --> PaymentScreen
-  AssistantScreen --> PaymentScreen
-  MenuScreen --> MenuRoutes
-  CartScreen --> CartStore
-  AssistantScreen --> CartStore
-  AssistantScreen --> AssistantRoute
-  MenuRoutes --> MenuData
-  AssistantRoute --> Contracts
-  AssistantRoute --> AssistantService
-  AssistantService --> OpenAI
-  AssistantService --> Fallback
-  OpenAI --> ActionValidator
-  Fallback --> ActionValidator
-  ActionValidator --> AssistantScreen
+  User --> Menu
+  User --> Chat
+  User --> Cart
+
+  Menu --> MenuAPI
+  Chat --> Assistant
+
+  Assistant --> OpenAI
+  Assistant --> Fallback
+
+  Assistant --> Validator
+  Validator --> Contracts
+
+  Validator --> Cart
+  Cart --> Checkout
 ```
 
 ## Assistant Flow
 
 ```mermaid
 sequenceDiagram
-  participant U as User
-  participant M as Mobile Assistant
-  participant S as Express Server
-  participant O as OpenAI
-  participant F as Fallback Parser
-  participant V as Zod + Action Validator
-  participant C as Cart Store
+  participant User
+  participant Mobile
+  participant Backend
+  participant AI
+  participant Validator
+  participant Cart
 
-  U->>M: "Add one burger with coke and ketchup"
-  M->>S: message + cart + menu + conversationHistory + lastReferencedItemIds
-  S->>S: Resolve context and checkout intent
-  alt OpenAI available
-    S->>O: Prompt with menu, cart, and conversation context
-    O-->>S: Structured JSON
-  else OpenAI unavailable or invalid
-    S->>F: Deterministic parsing
-    F-->>S: Structured JSON
-  end
-  S->>V: Validate schema, item IDs, quantities, modifiers, cart state
-  V-->>S: Safe assistant response
-  S-->>M: intent, assistantMessage, actions, clarification options, confidence
-  M->>C: Apply validated cart actions only
+  User->>Mobile: "Add one burger with coke"
+
+  Mobile->>Backend: message + cart + context
+
+  Backend->>AI: intent + menu + history
+
+  AI-->>Backend: structured actions
+
+  Backend->>Validator: validate actions
+
+  Validator-->>Backend: safe response
+
+  Backend-->>Mobile: assistant response
+
+  Mobile->>Cart: apply validated actions
 ```
 
 ## Monorepo Structure
@@ -269,6 +265,30 @@ Use these prompts to show the assistant's natural-language behavior and context 
 
 The assistant tracks recent `referencedItemIds` so generic follow-ups resolve naturally.
 
+### Context Resolution Engine
+
+```mermaid
+flowchart TD
+
+  A[User Message] --> B[Intent Detection]
+
+  B --> C{Ambiguous Reference?}
+
+  C -->|Yes| D[Resolve From Conversation Context]
+  C -->|No| E[Direct Menu Match]
+
+  D --> F[Recent referencedItemIds]
+  F --> G[Resolved Menu Item]
+
+  E --> G
+
+  G --> H[Generate Structured Actions]
+  H --> I[Validate Actions]
+  I --> J[Update Cart]
+```
+
+### Example Context Flow
+
 ```mermaid
 flowchart TD
   A[User asks: what chicken options do you have?] --> B[Assistant references Spicy Chicken Burger and Spicy Chicken Sandwich]
@@ -363,22 +383,3 @@ Highest-value automated test coverage for this project:
 ## Development Process
 
 The project was built incrementally with meaningful commits across mobile UI, backend APIs, assistant orchestration, validation, and documentation.
-
-## Known Limitations
-
-- The menu is currently seeded JSON, not database-backed.
-- Payments are UI-only.
-- Voice input depends on browser support in Expo web preview.
-- Native mobile speech recognition can be added later.
-
-## Tradeoffs And Future Improvements
-
-- Add native speech-to-text for iOS and Android.
-- Add persistent cart and order history.
-- Add real payment provider integration.
-- Broaden automated unit test coverage for assistant context resolution and cart validation.
-- Add telemetry for assistant confidence and fallback usage.
-
-## AI Tools Used
-
-This project was built with AI-assisted development support for implementation, prompt iteration, and documentation. The application itself calls OpenAI only from the backend when `OPENAI_API_KEY` is configured.
