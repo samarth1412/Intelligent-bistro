@@ -2,7 +2,7 @@
 
 Intelligent Bistro is a production-style restaurant ordering app built with Expo React Native and a TypeScript Express backend. Users can browse a seeded bistro menu, manage a cart, and use a conversational AI assistant to ask menu questions, get recommendations, update the cart, and move to payment when the order is complete.
 
-The assistant is intentionally backend-orchestrated. The mobile app never calls OpenAI directly; it sends cart, menu, and conversation context to the API, receives validated structured actions, and only then mutates local cart state.
+The assistant is intentionally backend-orchestrated. The mobile app never calls OpenAI directly, it sends cart, menu, and conversation context to the API, receives validated structured actions, and only then mutates local cart state.
 
 ## Preview
 
